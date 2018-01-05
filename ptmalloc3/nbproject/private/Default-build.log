@@ -1,0 +1,50 @@
+gcc -c  -g -O2  -Wall -Wstrict-prototypes -DUSE_TSD_DATA_HACK -D_REENTRANT -Isysdeps/generic -DTHREAD_STATS=1  -DMSPACES=1 ptmalloc3.c
+ptmalloc3.c:207:6: warning: variably modified 'buf_' at file scope
+      CHUNK_ALIGN_MASK + 1];
+      ^~~~~~~~~~~~~~~~
+ptmalloc3.c: In function 'ptmalloc_init':
+ptmalloc3.c:644:9: warning: variable 'mspace' set but not used [-Wunused-but-set-variable]
+   void *mspace;
+         ^~~~~~
+gcc -c  -g -O2  -Wall -Wstrict-prototypes -DUSE_TSD_DATA_HACK -D_REENTRANT -Isysdeps/generic -DTHREAD_STATS=1  -DONLY_MSPACES -DUSE_LOCKS=0 malloc.c
+malloc.c: In function 'mmap_resize':
+malloc.c:1494:41: warning: implicit declaration of function 'mremap' [-Wimplicit-function-declaration]
+ #define CALL_MREMAP(addr, osz, nsz, mv) mremap((addr), (osz), (nsz), (mv))
+                                         ^
+malloc.c:3553:23: note: in expansion of macro 'CALL_MREMAP'
+     char* cp = (char*)CALL_MREMAP((char*)oldp - offset,
+                       ^~~~~~~~~~~
+malloc.c:3553:16: warning: cast to pointer from integer of different size [-Wint-to-pointer-cast]
+     char* cp = (char*)CALL_MREMAP((char*)oldp - offset,
+                ^
+malloc.c: In function 'sys_trim':
+malloc.c:3981:62: warning: comparison between pointer and integer
+             if ((CALL_MREMAP(sp->base, sp->size, newsize, 0) != MFAIL) ||
+                                                              ^~
+ar cr libptmalloc3.a ptmalloc3.o malloc.o
+ranlib libptmalloc3.a
+gcc  -g -O2  -Wall -Wstrict-prototypes -DUSE_TSD_DATA_HACK -D_REENTRANT -Isysdeps/generic -DUSE_MALLOC=1 -DTEST=1 t-test1.c libptmalloc3.a -lpthread -o t-test1
+gcc  -g -O2  -Wall -Wstrict-prototypes -DUSE_TSD_DATA_HACK -D_REENTRANT -Isysdeps/generic -DUSE_MALLOC=1 -DTEST=1 t-test2.c libptmalloc3.a -lpthread -o t-test2
+In file included from t-test2.c:33:0:
+t-test2.c: In function 'bin_test':
+sysdeps/generic/malloc-machine.h:39:48: warning: right-hand operand of comma expression has no effect [-Wunused-value]
+ # define mutex_lock(m)              ((*(m) = 1), 0)
+                                     ~~~~~~~~~~~^~~~
+t-test2.c:67:3: note: in expansion of macro 'mutex_lock'
+   mutex_lock(&blocks[b].mutex);
+   ^~~~~~~~~~
+t-test2.c: In function 'malloc_test':
+sysdeps/generic/malloc-machine.h:39:48: warning: right-hand operand of comma expression has no effect [-Wunused-value]
+ # define mutex_lock(m)              ((*(m) = 1), 0)
+                                     ~~~~~~~~~~~^~~~
+t-test2.c:97:4: note: in expansion of macro 'mutex_lock'
+    mutex_lock(&bl->mutex);
+    ^~~~~~~~~~
+sysdeps/generic/malloc-machine.h:39:48: warning: right-hand operand of comma expression has no effect [-Wunused-value]
+ # define mutex_lock(m)              ((*(m) = 1), 0)
+                                     ~~~~~~~~~~~^~~~
+t-test2.c:108:4: note: in expansion of macro 'mutex_lock'
+    mutex_lock(&bl->mutex);
+    ^~~~~~~~~~
+gcc  -g -O2  -Wall -Wstrict-prototypes -DUSE_TSD_DATA_HACK -D_REENTRANT -Isysdeps/generic -DUSE_MALLOC=1 -DTEST=1 tst-independent-alloc.c libptmalloc3.a \
+ -lpthread -o tst-independent-alloc

@@ -1,0 +1,13 @@
+Loading input sensor input from file: sensor_values_non_competitive.csv
+Loading initial 2D object bmp image from file: test3.bmp
+*******************************************************************************************************
+Team Information:
+	team_name: Egg Tomato
+	student1_first_name: Xian
+	student1_last_name: Zhang
+	student1_student_number: 1000564766
+	student2_first_name: Qili
+	student2_last_name: Lu
+	student2_student_number: 1000354537
+*******************************************************************************************************
+ERROR: frame #0 is different compared to the reference implementation

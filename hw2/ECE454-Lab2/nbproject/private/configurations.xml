@@ -1,0 +1,130 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configurationDescriptor version="97">
+  <logicalFolder name="root" displayName="root" projectFiles="true" kind="ROOT">
+    <df root="." name="0">
+      <df name="bin">
+        <df name="CMakeFiles">
+          <df name="3.7.2">
+            <df name="CompilerIdC">
+              <in>CMakeCCompilerId.c</in>
+            </df>
+            <df name="CompilerIdCXX">
+              <in>CMakeCXXCompilerId.cpp</in>
+            </df>
+          </df>
+          <df name="CMakeTmp">
+          </df>
+          <df name="ECE454_Lab2.dir">
+          </df>
+          <in>feature_tests.c</in>
+          <in>feature_tests.cxx</in>
+        </df>
+      </df>
+      <df name="CMakeFiles">
+        <df name="3.7.2">
+          <df name="CompilerIdC">
+            <in>CMakeCCompilerId.c</in>
+          </df>
+          <df name="CompilerIdCXX">
+            <in>CMakeCXXCompilerId.cpp</in>
+          </df>
+        </df>
+        <df name="CMakeTmp">
+        </df>
+        <df name="ECE454_Lab2.dir">
+        </df>
+        <in>feature_tests.c</in>
+        <in>feature_tests.cxx</in>
+      </df>
+      <in>ECE454-Lab2.c</in>
+      <in>ECE454-Lab2_b.c</in>
+      <in>clock.c</in>
+      <in>clock.h</in>
+      <in>fcyc.c</in>
+      <in>fcyc.h</in>
+      <in>implementation ( complicated memcpy version).c</in>
+      <in>implementation (1200000x).c</in>
+      <in>implementation (16000x).c</in>
+      <in>implementation (7000 tiling version).c</in>
+      <in>implementation (9000x).c</in>
+      <in>implementation (fake tiling version).c</in>
+      <in>implementation (final clean edit).c</in>
+      <in>implementation (final not pre pro not bug).c</in>
+      <in>implementation (final tiling 2000000x).c</in>
+      <in>implementation (precompute edition need to precompute index as well).c</in>
+      <in>implementation (submit verison 2).c</in>
+      <in>implementation (submit version 1).c</in>
+      <in>implementation (test for seg).c</in>
+      <in>implementation (version 3).c</in>
+      <in>implementation (version 4 2300x).c</in>
+      <in>implementation (version 5 6000x).c</in>
+      <in>implementation (version 6 6-8000x).c</in>
+      <in>implementation (version 7 8500x).c</in>
+      <in>implementation.c</in>
+      <in>implementation.h</in>
+      <in>implementation_b.c</in>
+      <in>implementation_bak.c</in>
+      <in>implementation_cache.c</in>
+      <in>implementation_cache2.c</in>
+      <in>implementation_debug.c</in>
+      <in>implementation_failed.c</in>
+      <in>implementation_latest_unrolling.c</in>
+      <in>implementation_reference.c</in>
+      <in>implementation_reference.h</in>
+      <in>implementation_test 9000.c</in>
+      <in>implementation_test_frame 5 error.c</in>
+      <in>implementationbb.c</in>
+      <in>loadbmp.h</in>
+      <in>utilities.c</in>
+      <in>utilities.h</in>
+    </df>
+  </logicalFolder>
+  <projectmakefile>Makefile</projectmakefile>
+  <confs>
+    <conf name="Default" type="0">
+      <toolsSet>
+        <developmentServer>localhost</developmentServer>
+        <platform>2</platform>
+      </toolsSet>
+      <compile>
+        <compiledirpicklist>
+          <compiledirpicklistitem>.</compiledirpicklistitem>
+          <compiledirpicklistitem>${AUTO_FOLDER}</compiledirpicklistitem>
+        </compiledirpicklist>
+        <compiledir>${AUTO_FOLDER}</compiledir>
+        <compilecommandpicklist>
+          <compilecommandpicklistitem>${MAKE} ${ITEM_NAME}.o</compilecommandpicklistitem>
+          <compilecommandpicklistitem>${AUTO_COMPILE}</compilecommandpicklistitem>
+        </compilecommandpicklist>
+        <compilecommand>${AUTO_COMPILE}</compilecommand>
+      </compile>
+      <dbx_gdbdebugger version="1">
+        <gdb_pathmaps>
+        </gdb_pathmaps>
+        <gdb_interceptlist>
+          <gdbinterceptoptions gdb_all="false" gdb_unhandled="true" gdb_unexpected="true"/>
+        </gdb_interceptlist>
+        <gdb_options>
+          <DebugOptions>
+          </DebugOptions>
+        </gdb_options>
+        <gdb_buildfirst gdb_buildfirst_overriden="false" gdb_buildfirst_old="false"/>
+      </dbx_gdbdebugger>
+      <nativedebugger version="1">
+        <engine>gdb</engine>
+      </nativedebugger>
+      <runprofile version="9">
+        <runcommandpicklist>
+          <runcommandpicklistitem>"${OUTPUT_PATH}"</runcommandpicklistitem>
+        </runcommandpicklist>
+        <runcommand>"${OUTPUT_PATH}"</runcommand>
+        <rundir>.</rundir>
+        <buildfirst>false</buildfirst>
+        <terminal-type>0</terminal-type>
+        <remove-instrumentation>0</remove-instrumentation>
+        <environment>
+        </environment>
+      </runprofile>
+    </conf>
+  </confs>
+</configurationDescriptor>

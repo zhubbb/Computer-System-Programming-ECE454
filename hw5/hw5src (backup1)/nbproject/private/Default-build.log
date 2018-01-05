@@ -1,0 +1,13 @@
+gcc -c -Wall -g -O2  -DUSE_GETTIMEOFDAY  "-DCOMPILER=\"gcc\"" "-DFLAGS=\"-Wall -g -O2\"" gol.c -o gol.o
+gcc -c -Wall -g -O2  -DUSE_GETTIMEOFDAY  "-DCOMPILER=\"gcc\"" "-DFLAGS=\"-Wall -g -O2\"" life.c -o life.o
+gcc -c -Wall -g -O2  -DUSE_GETTIMEOFDAY  "-DCOMPILER=\"gcc\"" "-DFLAGS=\"-Wall -g -O2\"" lifeseq.c -o lifeseq.o
+gcc -c -Wall -g -O2  -DUSE_GETTIMEOFDAY  "-DCOMPILER=\"gcc\"" "-DFLAGS=\"-Wall -g -O2\"" load.c -o load.o
+gcc -c -Wall -g -O2  -DUSE_GETTIMEOFDAY  "-DCOMPILER=\"gcc\"" "-DFLAGS=\"-Wall -g -O2\"" save.c -o save.o
+gcc -Wall -g -O2  -lm  gol.o life.o lifeseq.o load.o save.o  -o gol 
+gcc -c -Wall -g -O2  -DUSE_GETTIMEOFDAY  "-DCOMPILER=\"gcc\"" "-DFLAGS=\"-Wall -g -O2\"" bitboard.c -o bitboard.o
+gcc -c -Wall -g -O2  -DUSE_GETTIMEOFDAY  "-DCOMPILER=\"gcc\"" "-DFLAGS=\"-Wall -g -O2\"" random_bit.c -o random_bit.o
+random_bit.c: In function 'get_random_seed':
+random_bit.c:28:3: warning: dereferencing type-punned pointer will break strict-aliasing rules [-Wstrict-aliasing]
+   seed = *((uint32_t*) buffer);
+   ^~~~
+gcc -Wall -g -O2  -lm  bitboard.o random_bit.o -o initboard 

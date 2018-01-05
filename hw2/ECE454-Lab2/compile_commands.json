@@ -1,0 +1,32 @@
+[
+{
+  "directory": "/homes/z/zhang823/ece454/hw2/ECE454-Lab2",
+  "command": "/usr/bin/gcc    -O0 -g3 -gdwarf-2   -std=gnu99 -o CMakeFiles/ECE454_Lab2.dir/ECE454-Lab2.c.o   -c /homes/z/zhang823/ece454/hw2/ECE454-Lab2/ECE454-Lab2.c",
+  "file": "/homes/z/zhang823/ece454/hw2/ECE454-Lab2/ECE454-Lab2.c"
+},
+{
+  "directory": "/homes/z/zhang823/ece454/hw2/ECE454-Lab2",
+  "command": "/usr/bin/gcc    -O0 -g3 -gdwarf-2   -std=gnu99 -o CMakeFiles/ECE454_Lab2.dir/utilities.c.o   -c /homes/z/zhang823/ece454/hw2/ECE454-Lab2/utilities.c",
+  "file": "/homes/z/zhang823/ece454/hw2/ECE454-Lab2/utilities.c"
+},
+{
+  "directory": "/homes/z/zhang823/ece454/hw2/ECE454-Lab2",
+  "command": "/usr/bin/gcc    -O0 -g3 -gdwarf-2   -std=gnu99 -o CMakeFiles/ECE454_Lab2.dir/fcyc.c.o   -c /homes/z/zhang823/ece454/hw2/ECE454-Lab2/fcyc.c",
+  "file": "/homes/z/zhang823/ece454/hw2/ECE454-Lab2/fcyc.c"
+},
+{
+  "directory": "/homes/z/zhang823/ece454/hw2/ECE454-Lab2",
+  "command": "/usr/bin/gcc    -O0 -g3 -gdwarf-2   -std=gnu99 -o CMakeFiles/ECE454_Lab2.dir/clock.c.o   -c /homes/z/zhang823/ece454/hw2/ECE454-Lab2/clock.c",
+  "file": "/homes/z/zhang823/ece454/hw2/ECE454-Lab2/clock.c"
+},
+{
+  "directory": "/homes/z/zhang823/ece454/hw2/ECE454-Lab2",
+  "command": "/usr/bin/gcc    -O0 -g3 -gdwarf-2   -std=gnu99 -o CMakeFiles/ECE454_Lab2.dir/implementation_reference.c.o   -c /homes/z/zhang823/ece454/hw2/ECE454-Lab2/implementation_reference.c",
+  "file": "/homes/z/zhang823/ece454/hw2/ECE454-Lab2/implementation_reference.c"
+},
+{
+  "directory": "/homes/z/zhang823/ece454/hw2/ECE454-Lab2",
+  "command": "/usr/bin/gcc    -O0 -g3 -gdwarf-2   -std=gnu99 -o CMakeFiles/ECE454_Lab2.dir/implementation.c.o   -c /homes/z/zhang823/ece454/hw2/ECE454-Lab2/implementation.c",
+  "file": "/homes/z/zhang823/ece454/hw2/ECE454-Lab2/implementation.c"
+}
+]

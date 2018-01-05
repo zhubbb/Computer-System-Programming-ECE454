@@ -1,0 +1,1547 @@
+/*****************************************************************************
+ * life.c
+ * Parallelized and optimized implementation of the game of life resides here
+ ****************************************************************************/
+#include "life.h"
+#include "util.h"
+#include "stdio.h"
+#include "pthread.h"
+#include "string.h"
+#include "unistd.h"
+#include "stdlib.h"
+/*****************************************************************************
+ * Helper function definitions
+ ****************************************************************************/
+#define THREAD_NUM 16
+#define SCHDULER_THREAD 1
+
+typedef struct work{
+    pthread_mutex_t* upper_lock_other; //8B
+    pthread_mutex_t* upper_lock_self; 
+    pthread_mutex_t* lower_lock_other;
+    pthread_mutex_t* lower_lock_self;
+    //32B
+    
+    pthread_barrier_t* barrier;//8B
+    
+    char* inboard; //8B
+    char* outboard; //8B
+    char* info_buffer;
+    char* info_buffer2;
+    //24B
+    
+    int gens; //4B
+    int ncols,nrows;
+    int i1,i2;
+    int upperi1,upperi2;
+    int loweri1,loweri2;
+    
+    //int padding[4];
+    
+    char upper_bound;
+    char lower_bound;
+
+    
+}work;
+
+typedef struct coord1{
+        short i;
+        short j;
+        char used;
+    } coord;
+
+typedef struct info{
+    char neighbour_count;
+//    char new_count;
+    char state;
+}info;
+
+typedef struct status{
+    signed char state;
+    char update; 
+}status; 
+
+#define STATUS_NUM 32
+status status_map[STATUS_NUM];
+
+void init(int nrows, int ncols, char info_buffer[nrows][ncols], char* inboard );
+void  update_hori_boundary(int nrows,int ncols, char buffer1[nrows][ncols], char buffer2[nrows][ncols] );
+void  update_verti_boundary(int nrows,int ncols, char buffer1[nrows][ncols], char buffer2[nrows][ncols] );
+void memcpy2(void* dest, void* src, size_t size);
+void init_status_map();
+void *parallel_game_of_life_new (void* param);
+char*
+sequential_game_of_life2 (char* outboard, 
+        char* inboard,
+        const int nrows,
+        const int ncols,
+        const int gens_max);
+char *sequential_game_of_life_new (char* outboard, 
+    const int nrows,
+    const int ncols,
+    char info_buffer[nrows][ncols],
+    char info_buffer2[nrows][ncols],
+    const int gens_max);
+
+/*****************************************************************************
+ * Game of life implementation
+ ****************************************************************************/
+
+
+
+pthread_spinlock_t spinlock ;
+int resource = THREAD_NUM;
+#define LOCKGS pthread_spin_lock(&spinlock)
+#define UNLOCKGS pthread_spin_unlock(&spinlock)
+
+
+#define BARRIER LOCKGS; --resource; if(resource==0) {UNLOCKGS; goto next;} UNLOCKGS;while(resource!=0){;} next: LOCKGS;++resource;UNLOCKGS
+
+//
+char*
+game_of_life (char* outboard, 
+	      char* inboard,
+	      const int nrows,
+	      const int ncols,
+	      const int gens_max)
+{
+//     return sequential_game_of_life2 (outboard, inboard, nrows, ncols, gens_max);
+    
+   
+    
+   
+//    int new_rows = nrows;
+//    int new_cols= ncols;
+    char info_buffer[nrows][ncols];
+    char info_buffer2[nrows][ncols];
+//    char* info_buffer = malloc(nrows*ncols);
+//    char* info_buffer2 = malloc(nrows*ncols);
+    //(char(*)[ncols])
+    init_status_map();
+    
+    if(nrows<= 32 ){
+        init(nrows,ncols,info_buffer,inboard);
+        memcpy(info_buffer2,info_buffer,nrows*ncols);
+        return sequential_game_of_life_new (outboard, nrows, ncols,info_buffer,info_buffer2 ,gens_max);
+    }
+
+    
+    
+    
+    int work_load = nrows/THREAD_NUM;
+    int lock_num = (THREAD_NUM<<1);
+    //create threads
+    pthread_t workers[THREAD_NUM];
+    pthread_mutex_t locks[lock_num];
+//    pthread_spinlock_t locks[lock_num];
+    
+    
+    pthread_barrier_t worker_barrier;
+    pthread_barrier_init(&worker_barrier, NULL , THREAD_NUM); //let main thread do the boundary job?
+    
+    
+    
+     pthread_spin_init(&spinlock,1);
+    
+    
+    //init lock
+    for(int i=0;i< lock_num; ++i){
+        pthread_mutex_init(&locks[i],NULL);
+//        pthread_spin_init(&locks[i],NULL);
+    }
+    //init workload
+    work works[THREAD_NUM]; // need  to add padding to avoid false sharing
+    for(int i=0; i< THREAD_NUM; ++i){
+        int upperi1 = i*work_load;
+        int upperi2= upperi1+1;
+        int loweri1 = upperi1+work_load-1;
+        int loweri2 = loweri1-1;
+        int i1 = upperi2+1;
+        int i2= loweri2-1;
+        
+        int i_lock = i*2;
+        int upper_lock_other = (i_lock-1+lock_num)%lock_num;
+        int upper_lock_self = (i_lock);
+        
+        int lower_lock_other = (i_lock+2)%lock_num;
+        int lower_lock_self = (i_lock+1);
+        
+        works[i].upper_lock_other = &locks[upper_lock_other];
+        works[i].upper_lock_self= &locks[upper_lock_self];
+        works[i].lower_lock_other = &locks[lower_lock_other];
+        works[i].lower_lock_self= &locks[lower_lock_self];
+        works[i].barrier=&worker_barrier;
+        works[i].outboard = outboard;
+        works[i].inboard = inboard;
+        works[i].info_buffer = &info_buffer[0][0];
+        works[i].info_buffer2 = &info_buffer2[0][0];
+                
+        works[i].ncols=ncols;
+        works[i].nrows=nrows;
+        works[i].gens=gens_max;
+        works[i].i1=i1;
+        works[i].i2=i2;
+        works[i].loweri1=loweri1;
+        works[i].loweri2=loweri2;
+        works[i].upperi1=upperi1;
+        works[i].upperi2=upperi2;
+        works[i].upper_bound = i==0;
+        works[i].lower_bound = i==THREAD_NUM-1;
+        
+        
+        
+    }
+    
+    
+    //init thread
+    for(int i=0; i< THREAD_NUM; ++i){
+        pthread_create(&workers[i],NULL,parallel_game_of_life_new,&works[i]);
+    }
+    for(int i=0; i< THREAD_NUM; ++i){
+        pthread_join(workers[i],NULL);
+    }
+    
+//    sequential_game_of_life_new ( outboard, new_rows, new_cols,info_buffer,info_buffer2 ,gens_max );
+//    for(int i = 0 ;i<ncols*nrows;i++){
+//        if(outboard[i]==90){
+//            printf("i %d, j %d , %d\n",i/ncols,i%ncols,outboard[i]);
+//            break;
+//        }
+//    }
+    return outboard;//sequential_game_of_life_new ( outboard, new_rows, new_cols,info_buffer,info_buffer2 ,gens_max );
+  
+}
+
+
+void init_status_map(){
+    for(int i =0  ;i<STATUS_NUM; i++){
+        char old_status = i>>4;
+        char new_status = (((i&0b01111)|old_status) ==3);
+        char update = new_status^old_status;
+        status_map[i].state = new_status? 1: -1;
+        status_map[i].update = update;
+    }
+}
+void init(int nrows, int ncols, char info_buffer[nrows][ncols], char* inboard ){
+    
+//   init_status_map();
+   
+    
+//    const int LDA = ncols;
+#define BOARD( __board, __i, __j )  (__board[(__i)*ncols + (__j)])   
+
+    
+    for (int i = 0; i < nrows; i++)
+    {
+        
+        for (int j = 0; j < ncols; j++)
+        {
+            const int inorth = mod (i-1, nrows); // for i = 1  , i==0 seperately loop to avoid bounding issue , separte thread? no sepearte thread just first check and another loop if found
+            const int isouth = mod (i+1, nrows);
+            const int jwest = mod (j-1, ncols);
+            const int jeast = mod (j+1, ncols);
+
+             char neighbor_count = 
+                BOARD (inboard, inorth, jwest) + 
+                BOARD (inboard, inorth, j) + 
+                BOARD (inboard, inorth, jeast) + 
+                BOARD (inboard, i, jwest) +
+                BOARD (inboard, i, jeast) + 
+                BOARD (inboard, isouth, jwest) +
+                BOARD (inboard, isouth, j) + 
+                BOARD (inboard, isouth, jeast);
+
+            
+            
+            char state = BOARD (inboard, i, j)? 1:0 ;
+            neighbor_count = neighbor_count + (state<<4);
+            info_buffer[i][j] = neighbor_count;
+
+        }
+    }
+    
+    
+
+    
+}
+void init_parallel(int nrows, int ncols, int iinit,int iend, char (*info_buffer)[ncols],char (*info_buffer2)[ncols], char* inboard ){
+    
+    for (int i = iinit; i < iend; i++)
+    {
+        int il = i*ncols;
+        int inorth = mod (i-1, nrows)*ncols; 
+        int isouth = mod (i+1, nrows)*ncols;
+        for (int j = 0; j < ncols; j++)
+        {
+//            const int inorth = mod (i-1, nrows); // for i = 1  , i==0 seperately loop to avoid bounding issue , separte thread? no sepearte thread just first check and another loop if found
+//            const int isouth = mod (i+1, nrows);
+            const int jwest = mod (j-1, ncols);
+            const int jeast = mod (j+1, ncols);
+
+             char neighbor_count = 
+                 (inboard[ inorth+ jwest]) + 
+                 (inboard[ inorth+ j]) + 
+                 (inboard[ inorth+ jeast]) + 
+                 (inboard[ il+ jwest]) +
+                 (inboard[ il+ jeast]) + 
+                 (inboard[ isouth+ jwest]) +
+                 (inboard[ isouth+ j]) + 
+                 (inboard[ isouth+ jeast]);
+
+            
+            char state =  inboard[il+ j] ? 1:0 ;
+            neighbor_count = neighbor_count + (state<<4);
+            info_buffer2[i][j] = neighbor_count;
+        }
+    }
+//    memcpy(info_buffer2+iinit,info_buffer+iinit,(iend-iinit)*ncols);
+}
+
+
+
+#define SWAP_BUFFER(buffer1,buffer2) char (*temp)[ncols] = buffer1; buffer1 = buffer2; buffer2 = temp;
+
+
+
+#define UPDATE( i,j,inorth,isouth ,jwest, jeast,buffer2,change) \
+    buffer2[i][jwest] += change;\
+    buffer2[i][j] = buffer2[i][j] + (change<<4);\
+    buffer2[i][jeast] += change;\
+    buffer2[inorth][j] += change;\
+    buffer2[inorth][jwest] += change;\
+    buffer2[inorth][jeast] += change;\
+    buffer2[isouth][j] += change;\
+    buffer2[isouth][jwest] += change;\
+    buffer2[isouth][jeast] += change;\
+    
+
+//    buffer2[i][j].state = new_state
+
+#define LOCK(l) pthread_mutex_lock(l)
+#define UNLOCK(l) pthread_mutex_unlock(l)
+
+//#define LOCK(l) pthread_spin_lock(l)
+//#define UNLOCK(l) pthread_spin_unlock(l)
+
+
+char *sequential_game_of_life_new (char* outboard, 
+        const int nrows,
+        const int ncols,
+        char info_buffer[nrows][ncols],
+        char info_buffer2[nrows][ncols],
+        const int gens_max)
+{
+    /* HINT: in the parallel decomposition, LDA may not be equal to
+       nrows! */
+//    const int LDA = nrows;
+    int curgen, i, j;
+
+    
+    char (*buffer1)[ncols]= info_buffer;
+    char (*buffer2)[ncols]= info_buffer2;
+    
+
+    for (curgen = 0; curgen < gens_max; curgen++)
+    {
+        /* HINT: you'll be parallelizing these loop(s) by doing a
+           geometric decomposition of the output */
+//        size = 0;
+//        head.i=0;
+//        head.j=0;
+        
+        for (i = 1; i < nrows-1; i++)
+        {
+            
+//            if(update_row[i]==0) //only 630 row is not changed? almost every row is changing every time
+//              printf("update_row %d i:%d\n",update_row[i],i);
+//            if(1){
+                int inorth = i-1; //mod (i-1, nrows); // for i = 1  , i==0 seperately loop to avoid bounding issue , separte thread? no sepearte thread just first check and another loop if found
+                int isouth = i+1;//mod (i+1, nrows);
+                for (j = 1; j < ncols-1; j++)
+                {
+
+//                    char state = buffer1[i][j].state;
+                    int info_key= buffer1[i][j];
+                    status new_status =  status_map[info_key]; //(char)((neighbour_count|state)==3); 
+                   
+                    int update = new_status.update;
+
+//                    printf("count %d\n",neighbour_count);
+//                    printf("update %d\n",update);
+
+//                     int inorth = i-1; //mod (i-1, nrows); // for i = 1  , i==0 seperately loop to avoid bounding issue , separte thread? no sepearte thread just first check and another loop if found
+//                     int isouth = i+1;//mod (i+1, nrows);
+                     int jwest = j-1;//mod (j-1, ncols);
+                     int jeast = j+1;//mod (j+1, ncols);
+
+                    if(update){
+                       int new_state = new_status.state;
+    //                     record[i][j]=update;
+                       UPDATE(i,j,inorth,isouth,jwest,jeast,buffer2,new_state);
+                      
+    //                   update_list[size].i=i
+    //                   update_list[size].j=j; //and neighbour into //remove same coord
+    //                   insert(i,j);
+    //                   ++size;
+    //                   update_list[i][j] = 1; //and neighbour
+
+
+                    }
+
+                }
+
+        }
+//        memcpy(update_row,update_row2,nrows);
+//        memset(update_row2,0,nrows);
+//       
+
+
+        update_hori_boundary(nrows,ncols,buffer1,buffer2); //0.11%
+        update_verti_boundary(nrows,ncols,buffer1,buffer2); //0.79%
+      
+//        SWAP_BUFFER(buffer1,buffer2);
+        memcpy(buffer1,buffer2,nrows*ncols);
+//        for (i = 0; i < nrows; i++)
+//        {
+////            int il= i*ncols;
+//            for (j = 0; j < ncols; j++)
+//            {
+//                if(record[i][j]){
+//                    buffer1[i][j]=buffer2[i][j];
+//                    record[i][j]=0;
+//                }
+//                
+//
+//            }
+//
+//        }
+        
+//        SWAP_BOARDS( outboard, inboard );
+
+    }
+//    int size_update=0;
+//    int i = head.i ; int j =head.j;
+//    while(size>0){
+//        
+//        char state = buffer1[i][j].state;
+//        int neighbour_count= buffer1[i][j].neighbour_count;
+//        char new_state = (char)((neighbour_count|state)==3); 
+//        int update = state^new_state;
+//        const int inorth = mod (i-1, nrows); 
+//        const int isouth = mod (i+1, nrows);
+//        const int jwest = mod (j-1, ncols);
+//        const int jeast = mod (j+1, ncols);
+//        if(update){
+//           UPDATE(i,j,inorth,isouth,jwest,jeast,buffer2,new_state);
+//           insert(i,j);
+//           --size_update;
+//        }
+//        get_next(i,j,&i,&j);
+//        
+//        
+//    }
+//    size = size_update;
+    
+    
+    
+    /* 
+     * We return the output board, so that we know which one contains
+     * the final result (because we've been swapping boards around).
+     * Just be careful when you free() the two boards, so that you don't
+     * free the same one twice!!! 
+     */
+    
+    for (i = 0; i < nrows; i++)
+    {
+        int il= (i)*(ncols);
+        for (j = 0; j < ncols; j++)
+        {
+            outboard[il+j]=(buffer2[i][j]>16);
+
+
+        }
+            
+    }
+    return outboard;
+}
+
+void memcpy2(void* dest, void* src, size_t size){
+    memcpy(dest,src,size);
+}
+
+#define INSERT(indexi,indexj,list,head,size2)\
+    {\
+        int index = (indexi-upperi2)*ncols+indexj;\
+        if( (indexi>=upperi2) && (indexi<=loweri2) && (list[index].used==0)){\
+            coord temp = head;\
+            head.i=indexi; head.j=indexj;\
+            list[index].used=1;list[index].i=temp.i;list[index].j=temp.j;\
+            size2++;\
+        }\
+    }\
+    
+
+#define UPDATE_LIST( i,j,inorth,isouth ,jwest, jeast,list,head,size2)\
+    INSERT(i,jwest,list,head,size2);\
+    INSERT(i,jeast,list,head,size2);\
+    INSERT(inorth,j,list,head,size2);\
+    INSERT(isouth,j,list,head,size2);\
+    INSERT(inorth,jwest,list,head,size2);\
+    INSERT(isouth,jwest,list,head,size2);\
+    INSERT(inorth,jeast,list,head,size2);\
+    INSERT(isouth,jeast,list,head,size2);\
+
+
+#define LOWBOUND(i,max) i<0?max-1:i
+#define HIGHBOUND(i,max) i>=max?0:i
+void  update_hori_boundary(int nrows,int ncols, char buffer1[nrows][ncols], char buffer2[nrows][ncols] ){
+        for(int j = 0 ;j <ncols; j++){
+            int i = 0;
+            int info_key= buffer1[i][j];
+            status new_status =  status_map[info_key]; //(char)((neighbour_count|state)==3); 
+            int update = new_status.update;
+           
+            int inorth = nrows-1;//mod (i-1, nrows); 
+            int isouth = 1;//mod (i+1, nrows);
+            int jwest =  LOWBOUND (j-1, ncols);
+            int jeast =  HIGHBOUND (j+1, ncols);
+            if(update){
+                int new_state =  new_status.state;
+                UPDATE(i,j,inorth,isouth,jwest,jeast,buffer2,new_state);
+            }
+             
+            i = nrows-1;
+            info_key= buffer1[i][j];
+            new_status =  status_map[info_key]; //(char)((neighbour_count|state)==3); 
+            update = new_status.update;
+            inorth = nrows-2;//mod (i-1, nrows); 
+            isouth = 0;//mod (i+1, nrows);
+            jwest =  LOWBOUND (j-1, ncols);
+            jeast =  HIGHBOUND (j+1, ncols);
+            if(update){
+                int new_state =  new_status.state;
+                UPDATE(i,j,inorth,isouth,jwest,jeast,buffer2,new_state);
+            }
+            
+        }
+}
+void  update_upper_hori_boundary_parallel(int nrows,int ncols, char buffer1[nrows][ncols], char buffer2[nrows][ncols],pthread_mutex_t* lockself,pthread_mutex_t* lockother,int found   ){
+        for(int j = 0 ;j <ncols; j++){
+            int i = 0;
+            int info_key= buffer1[i][j];
+            status new_status =  status_map[info_key]; //(char)((neighbour_count|state)==3); 
+            int update = new_status.update;
+           
+            int inorth = nrows-1;//mod (i-1, nrows); 
+            int isouth = 1;//mod (i+1, nrows);
+            int jwest =  LOWBOUND (j-1, ncols);
+            int jeast =  HIGHBOUND (j+1, ncols);
+            if(update){
+//                int new_state =  new_status.state;
+                int change = new_status.state;
+                
+                LOCK(lockself);
+                buffer2[i][jwest] += change;
+                buffer2[i][jeast] += change;
+                buffer2[i][j] = buffer2[i][j] + (change<<4);
+                UNLOCK(lockself);
+                
+                LOCK(lockother);
+                buffer2[inorth][j] += change;
+                buffer2[inorth][jeast] += change;
+                buffer2[inorth][jwest] += change;
+                UNLOCK(lockother);
+                if(!found){
+                buffer2[isouth][j] += change;
+                buffer2[isouth][jwest] += change;
+                buffer2[isouth][jeast] += change;     
+                }
+               
+            }
+            
+        }
+}
+
+void  update_lower_hori_boundary_parallel(int nrows,int ncols, char buffer1[nrows][ncols], char buffer2[nrows][ncols],pthread_mutex_t* lockself,pthread_mutex_t* lockother ,int found ){
+        for(int j = 0 ;j <ncols; j++){
+            int i = nrows-1;
+            int info_key= buffer1[i][j];
+            status new_status =  status_map[info_key]; //(char)((neighbour_count|state)==3); 
+            int update = new_status.update;
+           
+            int inorth = nrows-2;//mod (i-1, nrows); 
+            int isouth = 0;//mod (i+1, nrows);
+            int jwest =  LOWBOUND (j-1, ncols);
+            int jeast =  HIGHBOUND (j+1, ncols);
+            if(update){
+//                char new_state =  new_status.state;
+                int change = new_status.state;
+                
+                LOCK(lockself);
+                buffer2[i][jwest] += change;
+                buffer2[i][jeast] += change;
+                buffer2[i][j] = buffer2[i][j] + (change<<4);
+                UNLOCK(lockself);
+                if(!found){
+                buffer2[inorth][j] += change;
+                buffer2[inorth][jeast] += change;
+                buffer2[inorth][jwest] += change;
+                }
+                LOCK(lockother);
+                buffer2[isouth][j] += change;
+                buffer2[isouth][jwest] += change;
+                buffer2[isouth][jeast] += change;    
+                UNLOCK(lockother);
+            }
+            
+        }
+}
+void  update_row_parallel_upperself(int nrows,int ncols,int i,char buffer1[nrows][ncols], char buffer2[nrows][ncols], pthread_mutex_t* lock, int found , coord* list ,coord* head, int upperi2, int loweri2, int* size){
+    int j_end=ncols-1;
+    
+      //leff end
+    int j = 0;
+    int inorth = i-1;//mod (i-1, nrows); 
+    int isouth = i+1;//mod (i+1, nrows);
+    int jwest =  j_end;//LOWBOUND (j-1, ncols);
+    int jeast =  1;//HIGHBOUND (j+1, ncols);
+    int info_key= buffer1[i][j];
+    status new_status =  status_map[info_key]; //(char)((neighbour_count|state)==3); 
+    int update = new_status.update;
+    if(update){
+//            char new_state =  new_status.state;
+            int change = new_status.state;
+//            buffer2[i][jwest] += change;
+//            buffer2[i][jeast] += change;
+//            buffer2[i][j] = buffer2[i][j] + (change<<4);
+            LOCK(lock);
+            buffer2[inorth][j] += change;
+            buffer2[inorth][jeast] += change;
+            buffer2[inorth][jwest] += change;
+            UNLOCK(lock);
+            if(!found){
+            buffer2[i][jwest] += change;
+            buffer2[i][jeast] += change;
+            buffer2[i][j] = buffer2[i][j] + (change<<4);
+            buffer2[isouth][j] += change;
+            buffer2[isouth][jwest] += change;
+            buffer2[isouth][jeast] += change;
+            }
+            if(list){
+                
+                    UPDATE_LIST(i,j,inorth,isouth ,jwest, jeast,list,(*head),(*size) );
+            }
+//            buffer2[i][j] = buffer2[i][j] + (change<<4);
+
+    }
+
+    
+    for(int j = 1 ;j <j_end; j++){
+        int info_key= buffer1[i][j];
+        status new_status =  status_map[info_key]; //(char)((neighbour_count|state)==3); 
+        int update = new_status.update;
+
+//        int inorth = i-1;//mod (i-1, nrows); 
+//        int isouth = i+1;//mod (i+1, nrows);
+        int jwest =  j-1;//LOWBOUND (j-1, ncols);
+        int jeast =  j+1;//HIGHBOUND (j+1, ncols);
+        if(update){
+//            char new_state =  new_status.state;
+            int change = new_status.state;
+           
+            LOCK(lock);
+            buffer2[inorth][j] += change;
+            buffer2[inorth][jeast] += change;
+            buffer2[inorth][jwest] += change;
+            UNLOCK(lock);
+            if(!found){
+            buffer2[i][jwest] += change;
+            buffer2[i][jeast] += change;
+            buffer2[i][j] = buffer2[i][j] + (change<<4);
+            buffer2[isouth][j] += change;
+            buffer2[isouth][jwest] += change;
+            buffer2[isouth][jeast] += change;
+            }
+
+            if(list){
+                    UPDATE_LIST(i,j,inorth,isouth ,jwest, jeast,list,(*head),(*size) );
+                }
+        }
+
+    }
+    
+     //right end
+    j = j_end;
+    jwest =  j_end-1;//LOWBOUND (j-1, ncols);
+    jeast =  0;//HIGHBOUND (j+1, ncols);
+    info_key= buffer1[i][j];
+    new_status =  status_map[info_key]; //(char)((neighbour_count|state)==3); 
+    update = new_status.update;
+    if(update){
+//            char new_state =  new_status.state;
+            int change = new_status.state;
+            
+            LOCK(lock);
+            buffer2[inorth][j] += change;
+            buffer2[inorth][jeast] += change;
+            buffer2[inorth][jwest] += change;
+            UNLOCK(lock);
+            if(!found){
+            buffer2[i][jwest] += change;
+            buffer2[i][jeast] += change;
+            buffer2[i][j] = buffer2[i][j] + (change<<4);
+            buffer2[isouth][j] += change;
+            buffer2[isouth][jwest] += change;
+            buffer2[isouth][jeast] += change;
+            }
+            if(list){
+                    UPDATE_LIST(i,j,inorth,isouth ,jwest, jeast,list,(*head),(*size) );
+                }
+
+    }
+    
+}
+void  update_row_parallel_upperother(int nrows,int ncols,int i,char buffer1[nrows][ncols], char buffer2[nrows][ncols], pthread_mutex_t* lockself,pthread_mutex_t* lockother,int found ){
+    int j_end=ncols-1;
+    
+    //leff end
+    int j = 0;
+    int inorth = i-1;//mod (i-1, nrows); 
+    int isouth = i+1;//mod (i+1, nrows);
+    int jwest =  j_end;//LOWBOUND (j-1, ncols);
+    int jeast =  1;//HIGHBOUND (j+1, ncols);
+    int info_key= buffer1[i][j];
+    status new_status =  status_map[info_key]; //(char)((neighbour_count|state)==3); 
+    int update = new_status.update;
+    if(update){
+//            char new_state =  new_status.state;
+            int change =new_status.state;
+
+            LOCK(lockself);
+            buffer2[i][jwest] += change;
+            buffer2[i][jeast] += change;
+            buffer2[i][j] = buffer2[i][j] + (change<<4);
+            UNLOCK(lockself);
+
+            LOCK(lockother);
+            buffer2[inorth][j] += change;
+            buffer2[inorth][jeast] += change;
+            buffer2[inorth][jwest] += change;
+            UNLOCK(lockother);
+            if(!found){
+            buffer2[isouth][j] += change;
+            buffer2[isouth][jwest] += change;
+            buffer2[isouth][jeast] += change;      
+            }
+    }
+    
+    for(int j = 1 ;j <j_end; j++){
+        int info_key= buffer1[i][j];
+        status new_status =  status_map[info_key]; //(char)((neighbour_count|state)==3); 
+        int update = new_status.update;
+
+//        int inorth = i-1;//mod (i-1, nrows); 
+//        int isouth = 1+1;//mod (i+1, nrows);
+        int jwest =  j-1;//LOWBOUND (j-1, ncols);
+        int jeast =  j+1;//HIGHBOUND (j+1, ncols);
+        if(update){
+//            char new_state =  new_status.state;
+            int change = new_status.state;
+
+            LOCK(lockself);
+            buffer2[i][jwest] += change;
+            buffer2[i][jeast] += change;
+            buffer2[i][j] = buffer2[i][j] + (change<<4);
+            UNLOCK(lockself);
+
+            LOCK(lockother);
+            buffer2[inorth][j] += change;
+            buffer2[inorth][jeast] += change;
+            buffer2[inorth][jwest] += change;
+            UNLOCK(lockother);
+
+            if(!found){
+            buffer2[isouth][j] += change;
+            buffer2[isouth][jwest] += change;
+            buffer2[isouth][jeast] += change;      
+            }     
+
+        }
+
+    }
+    
+    //right end
+    j = j_end;
+
+    jwest =  j_end-1;//LOWBOUND (j-1, ncols);
+    jeast =  0;//HIGHBOUND (j+1, ncols);
+    info_key= buffer1[i][j];
+    new_status =  status_map[info_key]; //(char)((neighbour_count|state)==3); 
+     update = new_status.update;
+    if(update){
+//          char new_state =  new_status.state;
+          int change = new_status.state;
+
+          LOCK(lockself);
+          buffer2[i][jwest] += change;
+          buffer2[i][jeast] += change;
+          buffer2[i][j] = buffer2[i][j] + (change<<4);
+          UNLOCK(lockself);
+
+          LOCK(lockother);
+          buffer2[inorth][j] += change;
+          buffer2[inorth][jeast] += change;
+          buffer2[inorth][jwest] += change;
+          UNLOCK(lockother);
+
+         if(!found){
+            buffer2[isouth][j] += change;
+            buffer2[isouth][jwest] += change;
+            buffer2[isouth][jeast] += change;      
+        }
+
+    }
+    
+}
+void  update_row_parallel_lowerself(int nrows,int ncols,int i,char buffer1[nrows][ncols], char buffer2[nrows][ncols], pthread_mutex_t* lock ,int found, coord* list, coord* head, int upperi2, int loweri2, int* size){
+    int j_end=ncols-1;
+    
+    
+    //leff end
+    int j = 0;
+    int inorth = i-1;//mod (i-1, nrows); 
+    int isouth = i+1;//mod (i+1, nrows);
+    int jwest =  j_end;//LOWBOUND (j-1, ncols);
+    int jeast =  1;//HIGHBOUND (j+1, ncols);
+    int info_key= buffer1[i][j];
+    status new_status =  status_map[info_key]; //(char)((neighbour_count|state)==3); 
+    int update = new_status.update;
+    if(update){
+//            char new_state =  new_status.state;
+            int change = new_status.state;
+            if(!found){
+            buffer2[i][jwest] += change;
+            buffer2[i][jeast] += change;
+            buffer2[i][j] = buffer2[i][j] + (change<<4);
+            
+            buffer2[inorth][j] += change;
+            buffer2[inorth][jeast] += change;
+            buffer2[inorth][jwest] += change;
+            }
+            LOCK(lock);
+            buffer2[isouth][j] += change;
+            buffer2[isouth][jwest] += change;
+            buffer2[isouth][jeast] += change;
+            UNLOCK(lock);
+            if(list){
+                    UPDATE_LIST(i,j,inorth,isouth ,jwest, jeast,list,(*head),(*size) );
+                }
+    }
+    
+    for(int j = 1 ;j <j_end; j++){
+        int info_key= buffer1[i][j];
+        status new_status =  status_map[info_key]; //(char)((neighbour_count|state)==3); 
+        int update = new_status.update;
+
+//        int inorth = i-1;//mod (i-1, nrows); 
+//        int isouth = 1+1;//mod (i+1, nrows);
+        int jwest =  j-1;//LOWBOUND (j-1, ncols);
+        int jeast =  j+1;//HIGHBOUND (j+1, ncols);
+        if(update){
+//            char new_state =  new_status.state;
+            int change = new_status.state;
+            if(!found){
+            buffer2[i][jwest] += change;
+            buffer2[i][jeast] += change;
+            buffer2[i][j] = buffer2[i][j] + (change<<4);
+
+            buffer2[inorth][j] += change;
+            buffer2[inorth][jeast] += change;
+            buffer2[inorth][jwest] += change;
+            }
+            LOCK(lock);
+            buffer2[isouth][j] += change;
+            buffer2[isouth][jwest] += change;
+            buffer2[isouth][jeast] += change;
+            UNLOCK(lock);
+            if(list){
+                    UPDATE_LIST(i,j,inorth,isouth ,jwest, jeast,list,(*head),(*size) );
+                }
+
+        }
+
+    }
+    
+    //right end
+     j = j_end;
+   
+     jwest =  j_end-1;//LOWBOUND (j-1, ncols);
+     jeast =  0;//HIGHBOUND (j+1, ncols);
+     info_key= buffer1[i][j];
+     new_status =  status_map[info_key]; //(char)((neighbour_count|state)==3); 
+     update = new_status.update;
+    if(update){
+//            char new_state =  new_status.state;
+            int change =new_status.state;
+            if(!found){
+            buffer2[i][jwest] += change;
+            buffer2[i][jeast] += change;
+            buffer2[i][j] = buffer2[i][j] + (change<<4);
+
+            buffer2[inorth][j] += change;
+            buffer2[inorth][jeast] += change;
+            buffer2[inorth][jwest] += change;
+            }
+            LOCK(lock);
+            buffer2[isouth][j] += change;
+            buffer2[isouth][jwest] += change;
+            buffer2[isouth][jeast] += change;
+            UNLOCK(lock);
+            if(list){
+                    UPDATE_LIST(i,j,inorth,isouth ,jwest, jeast,list,(*head),(*size) );
+                    
+                   
+                }
+
+    }
+        
+    
+    
+}
+void  update_row_parallel_lowerother(int nrows,int ncols,int i,char buffer1[nrows][ncols], char buffer2[nrows][ncols], pthread_mutex_t* lockself,pthread_mutex_t* lockother, int found ){
+    int j_end=ncols-1;
+    
+    //leff end
+    int j = 0;
+    int inorth = i-1;//mod (i-1, nrows); 
+    int isouth = i+1;//mod (i+1, nrows);
+    int jwest =  j_end;//LOWBOUND (j-1, ncols);
+    int jeast =  1;//HIGHBOUND (j+1, ncols);
+    int info_key= buffer1[i][j];
+    status new_status =  status_map[info_key]; //(char)((neighbour_count|state)==3); 
+    int update = new_status.update;
+    if(update){
+//            char new_state =  new_status.state;
+            int change = new_status.state;
+            LOCK(lockself);
+            buffer2[i][jwest] += change;
+            buffer2[i][jeast] += change;
+            buffer2[i][j] = buffer2[i][j] + (change<<4);
+            UNLOCK(lockself);
+
+            if(!found){
+            buffer2[inorth][j] += change;
+            buffer2[inorth][jeast] += change;
+            buffer2[inorth][jwest] += change;
+            }
+
+            LOCK(lockother);
+            buffer2[isouth][j] += change;
+            buffer2[isouth][jwest] += change;
+            buffer2[isouth][jeast] += change;      
+            UNLOCK(lockother);
+
+    }
+            
+    for(int j = 1 ;j <j_end; j++){
+        int info_key= buffer1[i][j];
+        status new_status =  status_map[info_key]; //(char)((neighbour_count|state)==3); 
+        int update = new_status.update;
+
+//            int inorth = i-1;//mod (i-1, nrows); 
+//            int isouth = 1+1;//mod (i+1, nrows);
+        int jwest =  j-1;//LOWBOUND (j-1, ncols);
+        int jeast =  j+1;//HIGHBOUND (j+1, ncols);
+        if(update){
+//            char new_state =  new_status.state;
+            int change = new_status.state;// new_state? 1:-1;
+
+            LOCK(lockself);
+            buffer2[i][jwest] += change;
+            buffer2[i][jeast] += change;
+            buffer2[i][j] = buffer2[i][j] + (change<<4);
+            UNLOCK(lockself);
+
+            if(!found){
+            buffer2[inorth][j] += change;
+            buffer2[inorth][jeast] += change;
+            buffer2[inorth][jwest] += change;
+            }
+
+            LOCK(lockother);
+            buffer2[isouth][j] += change;
+            buffer2[isouth][jwest] += change;
+            buffer2[isouth][jeast] += change;      
+            UNLOCK(lockother);
+        }
+
+    }
+    
+     //right end
+     j = j_end;
+   
+     jwest =  j_end-1;//LOWBOUND (j-1, ncols);
+     jeast =  0;//HIGHBOUND (j+1, ncols);
+     info_key= buffer1[i][j];
+     new_status =  status_map[info_key]; //(char)((neighbour_count|state)==3); 
+     update = new_status.update;
+     if(update){
+//            char new_state =  new_status.state;
+            int change = new_status.state;//new_state? 1:-1;
+
+            LOCK(lockself);
+            buffer2[i][jwest] += change;
+            buffer2[i][jeast] += change;
+            buffer2[i][j] = buffer2[i][j] + (change<<4);
+            UNLOCK(lockself);
+
+            if(!found){
+            buffer2[inorth][j] += change;
+            buffer2[inorth][jeast] += change;
+            buffer2[inorth][jwest] += change;
+            }
+
+            LOCK(lockother);
+            buffer2[isouth][j] += change;
+            buffer2[isouth][jwest] += change;
+            buffer2[isouth][jeast] += change;      
+            UNLOCK(lockother);
+    }
+}
+
+void  update_verti_boundary_parallel(int nrows,int ncols,int iinit,int iend, char buffer1[nrows][ncols], char buffer2[nrows][ncols] ){
+    int j_end = ncols-1;
+    for(int i = iinit ;i < iend ; i++){
+        int j = 0;
+        int info_key= buffer1[i][j];
+        status new_status =  status_map[info_key]; //(char)((neighbour_count|state)==3); 
+        int update = new_status.update;
+
+        int inorth = i-1;//mod (i-1, nrows);
+        int isouth = i+1;//mod (i+1, nrows);
+        int jwest =  ncols-1;//mod (j-1, ncols);
+        int jeast =  1;//mod (j+1, ncols);
+
+        if(update){
+            int new_state =  new_status.state;
+            UPDATE(i,j,inorth,isouth,jwest,jeast,buffer2,new_state);
+        }
+
+        j = j_end;
+        info_key= buffer1[i][j];
+        new_status =  status_map[info_key]; //(char)((neighbour_count|state)==3); 
+        update = new_status.update;
+
+        inorth = i-1;//mod (i-1, nrows);
+        isouth = i+1;//mod (i+1, nrows);
+        jwest =  ncols-2; //mod (j-1, ncols);
+        jeast =  0;//mod (j+1, ncols);
+
+        if(update){
+            int new_state =  new_status.state;
+            UPDATE(i,j,inorth,isouth,jwest,jeast,buffer2,new_state);
+        }
+
+    }
+    
+}
+
+
+void  update_verti_boundary_i_j0(int nrows,int ncols, int i , char buffer1[nrows][ncols], char buffer2[nrows][ncols] ){
+//    for(int i = 1 ;i <nrows-1; i++){
+        int j = 0;
+        int info_key= buffer1[i][j];
+        status new_status =  status_map[info_key]; //(char)((neighbour_count|state)==3); 
+        int update = new_status.update;
+
+        int inorth = i-1;//mod (i-1, nrows);
+        int isouth = i+1;//mod (i+1, nrows);
+        int jwest =  ncols-1;//mod (j-1, ncols);
+        int jeast =  1;//mod (j+1, ncols);
+
+        if(update){
+            int new_state =  new_status.state;
+            UPDATE(i,j,inorth,isouth,jwest,jeast,buffer2,new_state);
+        }
+
+       
+//    }
+}
+void  update_verti_boundary_i_jl(int nrows,int ncols, int i, char buffer1[nrows][ncols], char buffer2[nrows][ncols] ){
+        int j = ncols-1;
+        int info_key= buffer1[i][j];
+        status new_status =  status_map[info_key];
+        int update = new_status.update;
+        int inorth = i-1;//mod (i-1, nrows);
+        int isouth = i+1;//mod (i+1, nrows);
+        int jwest =  ncols-2; //mod (j-1, ncols);
+        int jeast =  0;//mod (j+1, ncols);
+        
+        if(update){
+            int new_state =  new_status.state;
+            UPDATE(i,j,inorth,isouth,jwest,jeast,buffer2,new_state);
+        }
+
+
+}
+
+void  update_verti_boundary(int nrows,int ncols, char buffer1[nrows][ncols], char buffer2[nrows][ncols] ){
+    for(int i = 1 ;i <nrows-1; i++){
+        int j = 0;
+        int info_key= buffer1[i][j];
+        status new_status =  status_map[info_key]; //(char)((neighbour_count|state)==3); 
+        int update = new_status.update;
+
+        int inorth = i-1;//mod (i-1, nrows);
+        int isouth = i+1;//mod (i+1, nrows);
+        int jwest =  ncols-1;//mod (j-1, ncols);
+        int jeast =  1;//mod (j+1, ncols);
+
+        if(update){
+            int new_state =  new_status.state;
+            UPDATE(i,j,inorth,isouth,jwest,jeast,buffer2,new_state);
+        }
+
+        j = ncols-1;
+        info_key= buffer1[i][j];
+        new_status =  status_map[info_key]; //(char)((neighbour_count|state)==3); 
+        update = new_status.update;
+
+        inorth = i-1;//mod (i-1, nrows);
+        isouth = i+1;//mod (i+1, nrows);
+        jwest =  ncols-2; //mod (j-1, ncols);
+        jeast =  0;//mod (j+1, ncols);
+
+        if(update){
+            int new_state =  new_status.state;
+            UPDATE(i,j,inorth,isouth,jwest,jeast,buffer2,new_state);
+        }
+
+    }
+}
+
+
+
+
+//    char*
+//sequential_game_of_life2 (char* outboard, 
+//        char* inboard,
+//        const int nrows,
+//        const int ncols,
+//        const int gens_max)
+//{
+//    /* HINT: in the parallel decomposition, LDA may not be equal to
+//       nrows! */
+//    const int LDA = nrows;
+//    int curgen, i, j;
+//
+//    for (curgen = 0; curgen < gens_max; curgen++)
+//    {
+//        /* HINT: you'll be parallelizing these loop(s) by doing a
+//           geometric decomposition of the output */
+//        for (i = 0; i < nrows; i++)
+//        {
+//            for (j = 0; j < ncols; j++)
+//            {
+//                const int inorth = mod (i-1, nrows); // for i = 1  , i==0 seperately loop to avoid bounding issue , separte thread? no sepearte thread just first check and another loop if found
+//                const int isouth = mod (i+1, nrows);
+//                const int jwest = mod (j-1, ncols);
+//                const int jeast = mod (j+1, ncols);
+//
+//                const char neighbor_count = 
+//                    BOARD (inboard, inorth, jwest) + 
+//                    BOARD (inboard, inorth, j) + 
+//                    BOARD (inboard, inorth, jeast) + 
+//                    BOARD (inboard, i, jwest) +
+//                    BOARD (inboard, i, jeast) + 
+//                    BOARD (inboard, isouth, jwest) +
+//                    BOARD (inboard, isouth, j) + 
+//                    BOARD (inboard, isouth, jeast);
+//
+//                BOARD(outboard, i, j) = alivep (neighbor_count, BOARD (inboard, i, j)); //return ((x)|state)==3
+//
+//            }
+//        }
+//        SWAP_BOARDS( outboard, inboard );
+//
+//    }
+//    /* 
+//     * We return the output board, so that we know which one contains
+//     * the final result (because we've been swapping boards around).
+//     * Just be careful when you free() the two boards, so that you don't
+//     * free the same one twice!!! 
+//     */
+//    return inboard;
+//}
+
+//pthread_mutex_t glock = PTHREAD_MUTEX_INITIALIZER ;
+//#define lockg LOCK(&glock)
+//#define unlockg UNLOCK(&glock)
+//int found_num=0;
+void *parallel_game_of_life_new (void* _param_)
+{
+    /* HINT: in the parallel decomposition, LDA may not be equal to
+       nrows! */
+//    const int LDA = nrows;
+    
+//    clock_t start = clock();
+    work* param= (work*)_param_;
+    
+    int curgen;
+
+    int nrows = param->nrows;
+    int ncols = param->ncols;
+    int gens_max = param->gens;
+    int i_init= param->i1;
+    int i_end= param->i2+1;
+    int upperi1 = param->upperi1;
+    int upperi2 = param->upperi2;
+    int loweri1 = param->loweri1;
+    int loweri2 = param->loweri2;
+    char* outboard= param->outboard;
+    pthread_barrier_t* barrier =  param->barrier;
+    
+    char (*buffer1)[ncols]= (char(*)[ncols])param->info_buffer;
+    char (*buffer2)[ncols]= (char(*)[ncols])param->info_buffer2;
+    char upper_bound = param->upper_bound;
+    char lower_bound = param->lower_bound;
+    
+    pthread_mutex_t* upper_lock_self= param->upper_lock_self; 
+    pthread_mutex_t* upper_lock_other= param->upper_lock_other; 
+    pthread_mutex_t* lower_lock_self= param->lower_lock_self; 
+    pthread_mutex_t* lower_lock_other= param->lower_lock_other; 
+
+    
+    int offset = (upperi1);
+    int amount = (loweri1-upperi1+1)*ncols;
+    
+    #define frame_num 2
+    #define threshold_gen 5000
+    
+    char* inframe[frame_num];
+    char* outframe[frame_num];
+    int amount2 = (loweri2 - upperi2+1)*ncols;
+//    int offset2 = upperi2;
+    for(int i = 0 ;i<frame_num;i++){
+        inframe[i]=malloc(amount);
+        outframe[i]=malloc(amount);
+    }
+    int inframe_index=0;
+    
+    //init info_buffer
+    init_parallel(nrows,ncols,upperi1,loweri1+1,buffer1,buffer2,param->inboard);
+    pthread_barrier_wait(barrier);
+    
+    int update_size = amount2*sizeof(coord);
+    
+    coord* update_list = malloc(update_size);
+    coord* update_list2 = malloc(update_size);//[nrows][ncols];
+    coord head;
+    
+   
+    int size=0;
+    int size2=0;
+    int start_list=0;
+    
+    
+    
+    
+    
+//    printf("%d\n",offset);
+    
+//    printf("%d, %d, %d, %d, %d, %d\n",upperi1,upperi2,loweri2,loweri1, i_init, i_end);
+
+//    int outframe_index=0;
+//    int num = 0; 
+    for (curgen = 0; curgen < gens_max; curgen++)
+    {
+        /* HINT: you'll be parallelizing these loop(s) by doing a
+           geometric decomposition of the output */
+        
+        
+//        memcpy(buffer1+offset,buffer2+offset,amount);//cframe only when iter>thresh
+       
+        int found =0 ;
+//        int i=0;
+        if(curgen>threshold_gen){
+        for(int i =0;i<frame_num;i++){
+            if((memcmp(buffer2+offset,inframe[i],amount)==0)){
+//                printf("found %d\n",num); //if frame is the same we can copy the inner frame directly, but still do hori boundary
+                found =1;
+//                num++;
+//                lockg;
+//                found_num=found_num+1;
+//                unlockg;
+                
+                memcpy(buffer1+upperi1,buffer2+upperi1,ncols);
+                memcpy(buffer1+upperi2,buffer2+upperi2,ncols);
+                memcpy(buffer1+loweri2,buffer2+loweri2,ncols);
+                memcpy(buffer1+loweri1,buffer2+loweri1,ncols);
+                
+                memcpy(buffer2+upperi2,outframe[i]+ncols,amount2);
+                
+               
+                
+                break;
+            }
+        }
+        if(!found){
+            //printf("not found\n");
+            memcpy(inframe[inframe_index],buffer2+offset,amount);
+//            inframe_index=(inframe_index+1)%frame_num;
+            memcpy(buffer1+offset,buffer2+offset,amount);
+        }
+        }
+       
+
+        else{
+            //printf("not found\n");
+           
+            memcpy(buffer1+offset,buffer2+offset,amount);
+        }
+        
+       
+        pthread_barrier_wait(barrier);
+        if(curgen>0){
+            break;
+        } 
+        
+        
+        if(upper_bound){
+//             printf("%d\n",offset);
+            update_upper_hori_boundary_parallel(nrows,ncols,buffer1,buffer2,upper_lock_self,upper_lock_other,found); 
+        }else{
+//             printf("%d %d\n",upperi1, pthread_self());
+            update_row_parallel_upperother(nrows,ncols,upperi1,buffer1,buffer2,upper_lock_self,upper_lock_other,found);
+//            update_row_parallel_upperself(nrows,ncols,upperi1,buffer1,buffer2,upper_lock_self);
+        }
+        
+//        if(!found){
+        update_row_parallel_upperself(nrows,ncols,upperi2,buffer1,buffer2,upper_lock_self,found,NULL,NULL,upperi2,loweri2,NULL);
+//        printf("%d, %d, %d, %d\n",upperi1,upperi2,loweri2,loweri1);
+//        unlockg;
+//        clock_t start = clock();
+        if(!found){
+        for (int i = i_init; i < i_end; i++)
+        {
+            
+//            if(update_row[i]==0) //only 630 row is not changed? almost every row is changing every time
+//              printf("update_row %d i:%d\n",update_row[i],i);
+//            if(1){update_verti_boundary_i_j0
+                update_verti_boundary_i_j0(nrows,ncols,i,buffer1,buffer2);
+                int inorth = i-1; //mod (i-1, nrows); // for i = 1  , i==0 seperately loop to avoid bounding issue , separte thread? no sepearte thread just first check and another loop if found
+                int isouth = i+1;//mod (i+1, nrows);
+                int j;
+                for (j = 1; j < ncols-2; j=j+2)
+                {
+                    int info_key= buffer1[i][j];
+                    status new_status =  status_map[info_key];
+                    int update = new_status.update;
+                    
+                    
+                    int info_key2= buffer1[i][j+1];
+                    status new_status2 =  status_map[info_key2];
+                    int update2= new_status2.update;
+
+                    if(update){
+//                         uupdate++;
+//                        printf("update1\n");
+                       int jwest = j-1;//mod (j-1, ncols);
+                       int jeast = j+1;//mod (j+1, ncols);
+                       int new_state = new_status.state;
+                       UPDATE(i,j,inorth,isouth,jwest,jeast,buffer2,new_state);
+                    }
+                    
+//                    int info_key2= buffer1[i][j+1];
+//                    status new_status2 =  status_map[info_key2];
+//                    int update2= new_status2.update;
+                    if(update2){
+//                         uupdate++;
+//                        printf("update2\n");
+                       int jwest = j;//mod (j-1, ncols);
+                       int jeast = j+2;//mod (j+1, ncols);
+                       int new_state2 = new_status2.state;
+                       UPDATE(i,(j+1),inorth,isouth,jwest,jeast,buffer2,new_state2);
+                    }
+
+
+                }
+                for ( ;j < ncols-1; j=j+1)
+                {
+                    int info_key= buffer1[i][j];
+                    status new_status =  status_map[info_key];
+                    int update = new_status.update;
+                    if(update){
+                       int jwest = j-1;//mod (j-1, ncols);
+                       int jeast = j+1;//mod (j+1, ncols);
+                       int new_state = new_status.state;
+                       UPDATE(i,j,inorth,isouth,jwest,jeast,buffer2,new_state);
+                    }
+                }
+                update_verti_boundary_i_jl(nrows,ncols,i,buffer1,buffer2);
+
+        }
+        }
+       
+        
+        
+//        clock_t end = clock();
+//        if(!found)
+//        printf("clock %ld \n",(end-start) );
+//        lockg;
+        update_row_parallel_lowerself(nrows,ncols,loweri2,buffer1,buffer2,lower_lock_self,found,NULL,NULL,upperi2,loweri2,NULL);
+        
+        if(lower_bound){
+//             printf("%d\n",offset);
+            update_lower_hori_boundary_parallel(nrows,ncols,buffer1,buffer2,lower_lock_self,lower_lock_other,found); 
+        }else{
+//            printf("%d %d\n",loweri1, pthread_self());
+            update_row_parallel_lowerother(nrows,ncols,loweri1,buffer1,buffer2,lower_lock_self,lower_lock_other,found);
+//            update_row_parallel_lowerself(nrows,ncols,loweri1,buffer1,buffer2,lower_lock_self);
+        }
+        
+
+//        update_hori_boundary(nrows,ncols,buffer1,buffer2); //0.11%
+//        update_verti_boundary(nrows,ncols,buffer1,buffer2); //0.79%
+        
+//        update_verti_boundary_parallel(nrows,ncols,i_init,i_end,buffer1,buffer2);
+        
+        
+//        SWAP_BUFFER(buffer1,buffer2);
+        
+//        unlockg;
+//        printf("barreir111 %d\n",pthread_self());
+        pthread_barrier_wait(barrier);
+         if(curgen>threshold_gen){ 
+            if(!found){
+                //printf("not found\n");
+                memcpy(outframe[inframe_index],buffer2+offset,amount);
+                inframe_index=(inframe_index+1)%frame_num;
+
+            }
+         }
+//        pthread_barrier_wait(barrier);
+//        printf("barreir222 %d\n",pthread_self());
+//        lockg;
+//        memcpy(buffer1+offset,buffer2+offset,amount);
+////        unlockg;
+//        pthread_barrier_wait(barrier);
+        
+//        if(memcmp(buffer1,buffer2,nrows*ncols))
+//            printf("wrong\n");
+    }
+    if(curgen<gens_max){
+         //offset is upperi2
+        head.i=upperi2;
+        head.j=0;
+        short previ=upperi2;
+        short prevj=0;
+        for (int i = upperi2; i < loweri1; i++)
+        {   
+            for (int j = 0; j < ncols; j++)
+            {
+                 //printf("wrong\n");
+                int ilj = (previ-upperi2)*ncols+prevj;
+                update_list[ilj].i=i;
+                update_list[ilj].j=j;
+                update_list[ilj].used = 1;
+                previ=i;
+                prevj=j;
+
+            }
+        }
+        memset(update_list2,0,update_size);
+        size = (loweri1-upperi2)*ncols;
+    }
+    for(;curgen<gens_max;curgen++){
+        size2=0;
+        
+        
+        
+        coord current = head;
+        for(int c= 0 ; c< size; c++){
+
+            int i = current.i;
+            int j = current.j;
+            int info_key = buffer1[i][j];
+
+           // printf("%d,%d\n",i,j);
+            status new_status =  status_map[info_key]; 
+            int update = new_status.update;
+            char new_state = new_status.state;
+            //put outside will be much faster
+            const int inorth = i-1;//mod (i-1, nrows); // for i = 1  , i==0 seperately loop to avoid bounding issue , separte thread? no sepearte thread just first check and another loop if found
+            const int isouth = i+1;//mod (i+1, nrows);
+            const int jwest = mod (j-1, ncols);
+            const int jeast = mod (j+1, ncols);
+            if(update){
+               UPDATE(i,j,inorth,isouth,jwest,jeast,buffer2,new_state);
+               UPDATE_LIST(i,j,inorth,isouth,jwest,jeast,update_list2,head,size2);
+               
+            }
+            current = update_list[(i-upperi2)*ncols+j];
+//            if(current.i<upperi2){
+//                printf("wrong\n");
+//            }
+
+        }
+        if(upper_bound){
+            update_upper_hori_boundary_parallel(nrows,ncols,buffer1,buffer2,upper_lock_self,upper_lock_other,1); 
+        }else{
+            update_row_parallel_upperother(nrows,ncols,upperi1,buffer1,buffer2,upper_lock_self,upper_lock_other,1);
+        }
+        update_row_parallel_upperself(nrows,ncols,upperi2,buffer1,buffer2,upper_lock_self,1,update_list2,&head,upperi2,loweri2,&size2);
+        update_row_parallel_lowerself(nrows,ncols,loweri2,buffer1,buffer2,lower_lock_self,0,update_list2,&head,upperi2,loweri2,&size2);
+        if(lower_bound){
+            update_lower_hori_boundary_parallel(nrows,ncols,buffer1,buffer2,lower_lock_self,lower_lock_other,0); 
+        }else{
+            update_row_parallel_lowerother(nrows,ncols,loweri1,buffer1,buffer2,lower_lock_self,lower_lock_other,0);
+        }
+        
+        memcpy(update_list,update_list2,update_size);
+        memset(update_list2,0,update_size);
+
+        
+        size = size2;
+       
+        
+        
+        
+    }
+    
+    
+    
+//    lockg;
+//    pthread_barrier_wait(barrier);
+//     printf("%d, %d, %d, %d, %d, %d\n",upperi1,upperi2,loweri2,loweri1, i_init, i_end);
+    for (int i = upperi1; i <= loweri1; i++)
+    {
+        int il= (i)*(ncols);
+//        int accm = 0;
+        for (int j = 0; j < ncols; j++)
+        {
+            outboard[il+j]=(buffer2[i][j]>16);
+//            if(i<5 && j<100)
+//            printf("%d %d %d %d\n",i,j,buffer2[i][j],outboard[il+j]);
+//            accm +=(buffer2[i][j]>16);
+        }
+//        printf("%d %d\n",i,accm);
+            
+    }
+    
+
+//clock_t end = clock();
+//! Get thread clock Id
+//pthread_getcpuclockid(pthread_self(), &threadClockId);
+//! Using thread clock Id get the clock time
+//clock_gettime(threadClockId, &currTime);
+
+
+//printf("thread id %lu spent %lf\n",pthread_self(),(((double)(end-start))/CLOCKS_PER_SEC));
+//printf("%lu\n",sizeof(pthread_t));    
+
+
+//    unlockg;
+    pthread_exit(NULL);
+    return 0;
+}

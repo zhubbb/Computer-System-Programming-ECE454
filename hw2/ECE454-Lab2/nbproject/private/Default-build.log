@@ -1,0 +1,9 @@
+Scanning dependencies of target ECE454_Lab2
+[ 14%] Building C object CMakeFiles/ECE454_Lab2.dir/ECE454-Lab2.c.o
+[ 28%] Building C object CMakeFiles/ECE454_Lab2.dir/utilities.c.o
+[ 42%] Building C object CMakeFiles/ECE454_Lab2.dir/fcyc.c.o
+[ 57%] Building C object CMakeFiles/ECE454_Lab2.dir/clock.c.o
+[ 71%] Building C object CMakeFiles/ECE454_Lab2.dir/implementation_reference.c.o
+[ 85%] Building C object CMakeFiles/ECE454_Lab2.dir/implementation.c.o
+[100%] Linking C executable ECE454_Lab2
+[100%] Built target ECE454_Lab2

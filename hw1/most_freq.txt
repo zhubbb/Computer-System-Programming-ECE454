@@ -1,0 +1,156 @@
+ 35711468: 1377:
+ 34015176: 1379:
+ 34015176: 1384:	    /* If we swapped two blocks connected to the same net, its bounding box *
+ 31273530: 1387:	    if(net_block_moved[k] == FROM_AND_TO)
+ 25257436: 1389:
+ 31273530: 1403:				  y_from);
+ 62547060: 1405:
+ 31273530: 1406:	    if(place_cost_type != NONLINEAR_CONG)
+ 31273530: 1407:		{
+ 31273530: 1418:				      num_regions);
+ 27298052: 1512:	{			/* Move was rejected.  */
+ 26375690: 1514:	    /* Reset the net cost function flags first. */
+ 26375690: 1515:	    for(k = 0; k < num_nets_affected; k++)
+ 40117784: 1602:
+ 38421492: 1604:
+ 38421492: 1606:	{
+ 18137800: 1607:	    inet = block[b_from].nets[k];
+ 20283692: 1609:	    if(inet == OPEN)
+ 19503336: 1614:
+ 18767592: 1617:	    if(temp_net_cost[inet] > 0.)
+ 18767592: 1618:		continue;
+ 18767592: 1619:
+ 18767592: 1620:	    nets_to_update[affected_index] = inet;
+ 35351024: 1625:
+ 34009872: 1627:	{
+ 34009872: 1629:		{
+ 14883704: 1630:		    inet = block[b_to].nets[k];
+ 19126168: 1632:		    if(inet == OPEN)
+ 18362624: 1635:		    if(net[inet].is_global)
+ 25897604: 1637:
+ 25897604: 1639:			{	/* Net already marked. */
+ 15247584: 1663:		    else
+ 15247584: 1664:			{	/* Net not marked yet. */
+ 15247584: 1665:
+ 15247584: 1666:			    nets_to_update[affected_index] = inet;
+ 51169916: 1965:
+ 51169916: 1976:    t_type_ptr source_type, sink_type;
+ 51169916: 1978:
+ 51169916: 1979:    delay_source_to_sink = 0.;
+ 51169916: 1981:    source_block = net[inet].node_block[0];
+ 51169916: 1982:    source_type = block[source_block].type;
+ 51169916: 1984:    sink_block = net[inet].node_block[ipin];
+ 51169916: 1985:    sink_type = block[sink_block].type;
+ 51169916: 1987:    assert(source_type != NULL);
+ 51169916: 1988:    assert(sink_type != NULL);
+ 51169916: 1994:    /* Note: This heuristic is terrible on Quality of Results.  
+ 41984176: 2003:	}
+ 40748852: 2006:	    if(sink_type == IO_TYPE)
+ 51169916: 2008:	    else
+ 51169916: 2015:	    exit(1);
+ 51169916: 2022:	    exit(1);
+ 12572324: 2037:
+ 11798394: 2040:    for(blkpin = 0; blkpin < num_of_pins; blkpin++)
+ 11798394: 2042:
+ 40117784: 2168:    delta_delay_cost = 0.;
+ 38421492: 2170:
+ 38421492: 2172:	{
+ 18137800: 2173:	    inet = block[b_from].nets[k];
+ 20283692: 2175:	    if(inet == OPEN)
+ 19503336: 2178:	    if(net[inet].is_global)
+ 19503336: 2180:
+ 13449622: 2188:		    /*be computed in the fanout of the net on  the driving block, also  */
+ 13145420: 2189:		    /*computing it here would double count the change, and mess up the  */
+ 13145420: 2191:		    if(net[inet].node_block[0] != b_to
+ 13145420: 2194:			    temp_delay =
+ 26290840: 2196:
+ 13145420: 2197:			    temp_point_to_point_delay_cost[inet][net_pin] =
+ 13145420: 2199:			    temp_point_to_point_timing_cost[inet][net_pin] =
+ 13145420: 2200:				timing_place_crit[inet][net_pin] * temp_delay;
+ 13145420: 2201:
+ 13145420: 2203:				temp_point_to_point_delay_cost[inet][net_pin]
+ 13145420: 2204:				- point_to_point_delay_cost[inet][net_pin];
+ 13145420: 2205:
+ 19365274: 2211:	    else
+ 13311560: 2213:		    /*all point to point connections on this net. */
+ 13311560: 2216:			    temp_delay =
+ 26623120: 2218:
+ 13311560: 2219:			    temp_point_to_point_delay_cost[inet][ipin] =
+ 13311560: 2221:			    temp_point_to_point_timing_cost[inet][ipin] =
+ 26623120: 2222:				timing_place_crit[inet][ipin] * temp_delay;
+ 13311560: 2223:
+ 13311560: 2225:				temp_point_to_point_delay_cost[inet][ipin] -
+ 26623120: 2226:				point_to_point_delay_cost[inet][ipin];
+ 13311560: 2227:
+ 35351024: 2234:
+ 34009872: 2236:	{
+ 34009872: 2238:		{
+ 14883704: 2239:		    inet = block[b_to].nets[k];
+ 19126168: 2241:		    if(inet == OPEN)
+ 18362624: 2244:		    if(net[inet].is_global)
+ 18362624: 2246:
+ 12559512: 2254:			    /*computed in the fanout of the net on  the driving block, also    */
+ 12559512: 2255:			    /*computing it here would double count the change, and mess up the */
+ 12198040: 2257:			    if(net[inet].node_block[0] != b_to
+ 12198040: 2261:					comp_td_point_to_point_delay(inet,
+ 12198040: 2262:								     net_pin);
+ 12198040: 2263:
+ 24396080: 2264:				    temp_point_to_point_delay_cost[inet]
+ 12198040: 2265:					[net_pin] = temp_delay;
+ 12198040: 2268:					timing_place_crit[inet][net_pin] *
+ 12198040: 2269:					temp_delay;
+ 24396080: 2270:
+ 12198040: 2271:				    delta_delay_cost +=
+ 12198040: 2272:					temp_point_to_point_delay_cost[inet]
+ 12198040: 2273:					[net_pin] -
+ 12198040: 2274:					point_to_point_delay_cost[inet]
+ 24396080: 2275:					[net_pin];
+ 12198040: 2276:				    delta_timing_cost +=
+ 12198040: 2277:					temp_point_to_point_timing_cost[inet]
+ 17998030: 2283:		    else
+ 12194918: 2286:			    for(ipin = 1; ipin <= net[inet].num_sinks; ipin++)
+ 12194918: 2290:					comp_td_point_to_point_delay(inet,
+ 12194918: 2291:								     ipin);
+ 12194918: 2292:
+ 24389836: 2293:				    temp_point_to_point_delay_cost[inet][ipin]
+ 12194918: 2294:					= temp_delay;
+ 12194918: 2298:					temp_delay;
+ 12194918: 2299:
+ 24389836: 2300:
+ 12194918: 2301:				    delta_delay_cost +=
+ 12194918: 2302:					temp_point_to_point_delay_cost[inet]
+ 12194918: 2303:					[ipin] -
+ 24389836: 2304:					point_to_point_delay_cost[inet][ipin];
+ 12194918: 2305:				    delta_timing_cost +=
+ 12194918: 2306:					temp_point_to_point_timing_cost[inet]
+ 31275570: 3237:
+ 31275570: 3249:    /* Get the expected "crossing count" of a net, based on its number *
+ 31236870: 3256:	}
+ 62551140: 3266:    /* Cost = wire length along channel * cross_count / average      *
+ 31275570: 3267:     * channel capacity.   Do this for x, then y direction and add.  */
+ 62551140: 3269:    ncost = (bbptr->xmax - bbptr->xmin + 1) * crossing *
+ 31275570: 3270:	chanx_place_cost_fac[bbptr->ymax][bbptr->ymin - 1];
+ 31275570: 3272:    ncost += (bbptr->ymax - bbptr->ymin + 1) * crossing *
+ 25259404: 3277:
+ 25259404: 3292:
+ 25259404: 3293:    int k, xmax, ymax, xmin, ymin, x, y;
+ 25259404: 3295:    x = block[net[inet].node_block[0]].x;
+ 25259404: 3296:    y = block[net[inet].node_block[0]].y;
+ 25259404: 3297:
+ 25259404: 3298:    xmin = x;
+ 64443236: 3300:    xmax = x;
+ 39183832: 3302:
+ 39183832: 3303:    for(k = 1; k < (net[inet].num_sinks + 1); k++)
+ 39183832: 3305:	    x = block[net[inet].node_block[k]].x;
+ 13729632: 3307:
+ 25454200: 3309:		{
+ 15491918: 3311:		}
+ 39183832: 3314:		    xmax = x;
+ 14869256: 3316:
+ 24314576: 3318:		{
+ 14137244: 3320:		}
+ 25259404: 3331:     * clip to 1 in both directions as well (since minimum channel index *
+ 25259404: 3332:     * is 0).  See route.c for a channel diagram.                        */
+ 25259404: 3333:
+ 25259404: 3334:    bb_coord_new->xmin = max(min(xmin, nx), 1);
+ 25259404: 3335:    bb_coord_new->ymin = max(min(ymin, ny), 1);

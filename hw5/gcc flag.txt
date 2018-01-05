@@ -1,0 +1,30 @@
+Haswell/Skylake could run the not-taken case at one per 1.25 cycles, since it can execute a not-taken branch in the same cycle as a taken branch and has 4 ALU ports. (Or slightly less since a 5 uop loop doesn't quite issue at 4 uops every cycle).
+
+(Just tested: Skylake @ 3.9GHz runs the branchy version of the whole program in 1.45s, or the branchless version in 1.68s. So the difference is much smaller there.)
+
+g++6.3.1 uses cmov even at -O2, but g++5.4 still behaves like 4.9.2.
+
+With both g++6.3.1 and g++5.4, using -fprofile-generate / -fprofile-use produces the branchy version even at -O3 (with -fno-tree-vectorize).
+
+The CMOV version of the loop from newer gcc uses  add  ecx,-128 / cmovge rbx,rdx instead of CMP/CMOV. That's kinda weird, but probably doesn't slow it down. ADD writes an output register as well as flags, so creates more pressure on the number of physical registers. But as long as that's not a bottleneck, it should be about equal.
+
+Newer gcc auto-vectorizes the loop with -O3, which is a significant speedup even with just SSE2. (e.g. my i7-6700k Skylake runs the vectorized version in 0.74s, so about twice as fast as scalar. Or -O3 -march=native in 0.35s, using AVX2 256b vectors).
+
+The vectorized version looks like a lot of instructions, but it's not too bad, and most of them aren't part of a loop-carried dep chain. It only has to unpack to 64-bit elements near the end. It does pcmpgtd twice, though, because it doesn't realize it could just zero-extend instead of sign-extend when the condition has already zeroed all negative integers.
+
+shareimprove this answer
+edited Oct 23 at 1:30
+answered May 12 at 15:51
+
+Peter Cordes
+72k11122208
+1	 	
+BTW, I saw this question ages ago, probably when it was first posted, but I guess got side-tracked from answering it until now (when I was reminded of it). – Peter Cordes May 12 at 15:53
+  	 	
+Do -fprofile-generate and -fprofile-use help in this case? – Marc Glisse May 12 at 16:55
+  	 	
+@MarcGlisse: Just tested: yes, g++5.4 and g++6.3.1 make the same branchy code with -O3 -fno-tree-vectorize -fprofile-use. (Even though without PGO, g++6.3.1 uses CMOV even at -O2). On 3.9GHz Skylake, the CMOV version runs in 1.68s, while the branchy version runs in 1.45s, so the difference is much smaller with efficient CMOV. – Peter Cordes May 12 at 17:22
+  	 	
+@MarcGlisse: updated the answer with more stuff. Why is newer gcc using add ecx, -128 instead of a CMP? Is that just for code-size reasons (since -128 fits in a sign-extended imm8)? I guess that's probably worth writing ecx for no reason, since it's dead at that point and OOO execution can free it soon. I'm surprised it still doesn't use LEA to compute sum+data[c] in a different register to avoid the MOV, though. – Peter Cordes May 12 at 17:38 
+  	 	
+A lot of it seems to be tuning choices, playing with -mtune=... changes add to cmp. No idea about lea. On a skylake laptop, -O3 code is significantly faster than -O2 code. – Marc Glisse May 13 at 10:12

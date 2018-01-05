@@ -1,0 +1,7 @@
+teamName: Metroid X
+student1_fullName: Xian Zhang
+student1_studentNumber: 1000564766
+student1_email: xian.zhang@mail.utoronto.ca
+student2_fullName: Qili Lu
+student2_studentNumber: 1000354537
+student2_email: qili.lu@mail.utoronto.ca

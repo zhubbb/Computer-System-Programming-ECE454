@@ -1,0 +1,366 @@
+        -:    0:Source:SRC/main.c
+        -:    0:Graph:OBJ/main.gcno
+        -:    0:Data:OBJ/main.gcda
+        -:    0:Runs:3
+        -:    0:Programs:1
+        -:    1:#include <stdio.h>
+        -:    2:#include <string.h>
+        -:    3:#include <assert.h>
+        -:    4:#include "util.h"
+        -:    5:#include "vpr_types.h"
+        -:    6:#include "globals.h"
+        -:    7:#include "graphics.h"
+        -:    8:#include "read_netlist.h"
+        -:    9:#include "print_netlist.h"
+        -:   10:#include "draw.h"
+        -:   11:#include "place_and_route.h"
+        -:   12:#include "stats.h"
+        -:   13:#include "path_delay.h"
+        -:   14:#include "OptionTokens.h"
+        -:   15:#include "ReadOptions.h"
+        -:   16:#include "xml_arch.h"
+        -:   17:#include "SetupVPR.h"
+        -:   18:#include "rr_graph.h"
+        -:   19:
+        -:   20:/******** Global variables ********/
+        -:   21:int Fs_seed = -1;
+        -:   22:boolean WMF_DEBUG = FALSE;
+        -:   23:
+        -:   24:int W_seed = -1;
+        -:   25:int binary_search = -1;
+        -:   26:char *OutFilePrefix = NULL;
+        -:   27:
+        -:   28:float grid_logic_tile_area = 0;
+        -:   29:float ipin_mux_trans_size = 0;
+        -:   30:
+        -:   31:/******** Netlist to be mapped stuff ********/
+        -:   32:
+        -:   33:int num_nets = 0;
+        -:   34:struct s_net *net = NULL;
+        -:   35:
+        -:   36:int num_blocks = 0;
+        -:   37:struct s_block *block = NULL;
+        -:   38:
+        -:   39:
+        -:   40:/* This identifies the t_type_ptr of an IO block */
+        -:   41:int num_types = 0;
+        -:   42:struct s_type_descriptor *type_descriptors = NULL;
+        -:   43:
+        -:   44:t_type_ptr IO_TYPE = NULL;
+        -:   45:t_type_ptr EMPTY_TYPE = NULL;
+        -:   46:t_type_ptr FILL_TYPE = NULL;
+        -:   47:
+        -:   48:
+        -:   49:/******** Physical architecture stuff ********/
+        -:   50:
+        -:   51:int nx = 0;
+        -:   52:int ny = 0;
+        -:   53:
+        -:   54:/* TRUE if this is a global clb pin -- an input pin to which the netlist can *
+        -:   55: * connect global signals, but which does not connect into the normal        *
+        -:   56: * routing via muxes etc.  Marking pins like this (only clocks in my work)   *
+        -:   57: * stops them from screwing up the input switch pattern in the rr_graph      *
+        -:   58: * generator and from creating extra switches that the area model would      *
+        -:   59: * count.                                                                    */
+        -:   60:
+        -:   61:int *chan_width_x = NULL;	/* [0..ny] */
+        -:   62:int *chan_width_y = NULL;	/* [0..nx] */
+        -:   63:
+        -:   64:struct s_grid_tile **grid = NULL;	/* [0..(nx+1)][0..(ny+1)] Physical block list */
+        -:   65:
+        -:   66:
+        -:   67:/******** Structures defining the routing ********/
+        -:   68:
+        -:   69:/* Linked list start pointers.  Define the routing. */
+        -:   70:struct s_trace **trace_head = NULL;	/* [0..(num_nets-1)] */
+        -:   71:struct s_trace **trace_tail = NULL;	/* [0..(num_nets-1)] */
+        -:   72:
+        -:   73:
+        -:   74:/******** Structures defining the FPGA routing architecture ********/
+        -:   75:
+        -:   76:int num_rr_nodes = 0;
+        -:   77:t_rr_node *rr_node = NULL;	/* [0..(num_rr_nodes-1)] */
+        -:   78:t_ivec ***rr_node_indices = NULL;
+        -:   79:
+        -:   80:int num_rr_indexed_data = 0;
+        -:   81:t_rr_indexed_data *rr_indexed_data = NULL;	/* [0..(num_rr_indexed_data-1)] */
+        -:   82:
+        -:   83:/* Gives the rr_node indices of net terminals. */
+        -:   84:
+        -:   85:int **net_rr_terminals = NULL;	/* [0..num_nets-1][0..num_pins-1] */
+        -:   86:
+        -:   87:/* Gives information about all the switch types                      *
+        -:   88: * (part of routing architecture, but loaded in read_arch.c          */
+        -:   89:
+        -:   90:struct s_switch_inf *switch_inf = NULL;	/* [0..(det_routing_arch.num_switch-1)] */
+        -:   91:
+        -:   92:/* Stores the SOURCE and SINK nodes of all CLBs (not valid for pads).     */
+        -:   93:
+        -:   94:int **rr_blk_source = NULL;	/* [0..(num_blocks-1)][0..(num_class-1)] */
+        -:   95:
+        -:   96:
+        -:   97:/********************** Subroutines local to this module ********************/
+        -:   98:
+        -:   99:static void PrintUsage();
+        -:  100:static void PrintTitle();
+        -:  101:static void freeArch(t_arch* Arch);
+        -:  102:
+        -:  103:
+        -:  104:
+        -:  105:/************************* Subroutine definitions ***************************/
+        -:  106:
+        -:  107:int
+function main called 3 returned 67% blocks executed 72%
+        3:  108:main(int argc,
+        -:  109:     char **argv)
+        -:  110:{
+        -:  111:    t_options Options;
+        3:  112:    t_arch Arch = { 0 };
+        -:  113:
+        -:  114:	enum e_operation Operation;
+        -:  115:    struct s_placer_opts PlacerOpts;
+        -:  116:    struct s_annealing_sched AnnealSched;
+        -:  117:    struct s_router_opts RouterOpts;
+        -:  118:    struct s_det_routing_arch RoutingArch;
+        -:  119:    t_segment_inf *Segments;
+        -:  120:    t_timing_inf Timing;
+        -:  121:    t_subblock_data Subblocks;
+        -:  122:    boolean ShowGraphics;
+        -:  123:    boolean TimingEnabled;
+        -:  124:    int GraphPause;
+        -:  125:
+        -:  126:
+        -:  127:    /* Print title message */
+        3:  128:    PrintTitle();
+call    0 returned 100%
+        -:  129:
+        -:  130:    /* Print usage message if no args */
+        3:  131:    if(argc < 2)
+branch  0 taken 0% (fallthrough)
+branch  1 taken 100%
+        -:  132:	{
+    #####:  133:	    PrintUsage();
+call    0 never executed
+    #####:  134:	    exit(1);
+call    0 never executed
+        -:  135:	}
+        -:  136:
+        -:  137:    /* Read in available inputs  */
+        3:  138:    ReadOptions(argc, argv, &Options);
+call    0 returned 67%
+        -:  139:
+        -:  140:    /* Determine whether timing is on or off */
+        2:  141:    TimingEnabled = IsTimingEnabled(Options);
+call    0 returned 100%
+        -:  142:
+        -:  143:    /* Use inputs to configure VPR */
+        2:  144:    SetupVPR(Options, TimingEnabled, &Arch, &Operation, &PlacerOpts,
+call    0 returned 100%
+        -:  145:	     &AnnealSched, &RouterOpts, &RoutingArch, &Segments,
+        -:  146:	     &Timing, &Subblocks, &ShowGraphics, &GraphPause);
+        -:  147:
+        -:  148:    /* Check inputs are reasonable */
+        2:  149:    CheckOptions(Options, TimingEnabled);
+call    0 returned 100%
+        2:  150:    CheckArch(Arch, TimingEnabled);
+call    0 returned 100%
+        -:  151:
+        -:  152:    /* Verify settings don't conflict or otherwise not make sense */
+        2:  153:    CheckSetup(Operation, PlacerOpts, AnnealSched, RouterOpts,
+call    0 returned 100%
+        -:  154:	       RoutingArch, Segments, Timing, Subblocks, Arch.Chans);
+        -:  155:
+        -:  156:    /* Output the current settings to console. */
+        2:  157:    ShowSetup(Options, Arch, TimingEnabled, Operation, PlacerOpts,
+call    0 returned 100%
+        -:  158:	      AnnealSched, RouterOpts, RoutingArch, Segments, Timing,
+        -:  159:	      Subblocks);
+        -:  160:
+        2:  161:	if(Operation == TIMING_ANALYSIS_ONLY) {
+branch  0 taken 0% (fallthrough)
+branch  1 taken 100%
+    #####:  162:		do_constant_net_delay_timing_analysis(
+call    0 never executed
+        -:  163:			Timing, Subblocks, Options.constant_net_delay);
+    #####:  164:		return 0;
+        -:  165:	}
+        -:  166:
+        -:  167:    /* Startup X graphics */
+        2:  168:    set_graphics_state(ShowGraphics, GraphPause, RouterOpts.route_type);
+call    0 returned 100%
+        2:  169:    if(ShowGraphics)
+branch  0 taken 0% (fallthrough)
+branch  1 taken 100%
+        -:  170:	{
+    #####:  171:	    init_graphics("VPR:  Versatile Place and Route for FPGAs");
+call    0 never executed
+    #####:  172:	    alloc_draw_structs();
+call    0 never executed
+        -:  173:	}
+        -:  174:
+        -:  175:    /* Do the actual operation */
+        2:  176:    place_and_route(Operation, PlacerOpts, Options.PlaceFile,
+call    0 returned 100%
+        -:  177:		    Options.NetFile, Options.ArchFile, Options.RouteFile,
+        -:  178:		    AnnealSched, RouterOpts, RoutingArch,
+        -:  179:		    Segments, Timing, &Subblocks, Arch.Chans);
+        -:  180:
+        -:  181:    /* Close down X Display */
+        2:  182:    if(ShowGraphics)
+branch  0 taken 0% (fallthrough)
+branch  1 taken 100%
+    #####:  183:	close_graphics();
+call    0 never executed
+        -:  184:
+        -:  185:	/* free data structures */
+        2:  186:	free(Options.PlaceFile);
+        2:  187:	free(Options.NetFile);
+        2:  188:	free(Options.ArchFile);
+        2:  189:	free(Options.RouteFile);
+        -:  190:
+        2:  191:	freeArch(&Arch);
+call    0 returned 100%
+        -:  192:	
+        -:  193:    /* Return 0 to single success to scripts */
+        2:  194:    return 0;
+        -:  195:}
+        -:  196:
+        -:  197:
+        -:  198:
+        -:  199:/* Outputs usage message */
+        -:  200:static void
+function PrintUsage called 0 returned 0% blocks executed 0%
+    #####:  201:PrintUsage()
+        -:  202:{
+    #####:  203:    puts("Usage:  vpr circuit.net fpga.arch placed.out routed.out [Options ...]");
+call    0 never executed
+    #####:  204:    puts("");
+call    0 never executed
+    #####:  205:    puts("General Options:  [-nodisp] [-auto <int>] [-route_only]");
+call    0 never executed
+    #####:  206:    puts("\t[-place_only] [-timing_analyze_only_with_net_delay <float>]");
+call    0 never executed
+    #####:  207:    puts("\t[-fast] [-full_stats] [-timing_analysis on | off] [-outfile_prefix <string>]");
+call    0 never executed
+    #####:  208:    puts("");
+call    0 never executed
+    #####:  209:    puts("Placer Options:");
+call    0 never executed
+    #####:  210:    puts("\t[-place_algorithm bounding_box | net_timing_driven | path_timing_driven]");
+call    0 never executed
+    #####:  211:    puts("\t[-init_t <float>] [-exit_t <float>]");
+call    0 never executed
+    #####:  212:    puts("\t[-alpha_t <float>] [-inner_num <float>] [-seed <int>]");
+call    0 never executed
+    #####:  213:    puts("\t[-place_cost_exp <float>] [-place_cost_type linear | nonlinear]");
+call    0 never executed
+    #####:  214:    puts("\t[-place_chan_width <int>] [-num_regions <int>] ");
+call    0 never executed
+    #####:  215:    puts("\t[-fix_pins random | <file.pads>]");
+call    0 never executed
+    #####:  216:    puts("\t[-enable_timing_computations on | off]");
+call    0 never executed
+    #####:  217:    puts("\t[-block_dist <int>]");
+call    0 never executed
+    #####:  218:    puts("");
+call    0 never executed
+    #####:  219:    puts("Placement Options Valid Only for Timing-Driven Placement:");
+call    0 never executed
+    #####:  220:    puts("\t[-timing_tradeoff <float>]");
+call    0 never executed
+    #####:  221:    puts("\t[-recompute_crit_iter <int>]");
+call    0 never executed
+    #####:  222:    puts("\t[-inner_loop_recompute_divider <int>]");
+call    0 never executed
+    #####:  223:    puts("\t[-td_place_exp_first <float>]");
+call    0 never executed
+    #####:  224:    puts("\t[-td_place_exp_last <float>]");
+call    0 never executed
+    #####:  225:    puts("");
+call    0 never executed
+    #####:  226:    puts("Router Options:  [-max_router_iterations <int>] [-bb_factor <int>]");
+call    0 never executed
+    #####:  227:    puts("\t[-initial_pres_fac <float>] [-pres_fac_mult <float>]");
+call    0 never executed
+    #####:  228:    puts("\t[-acc_fac <float>] [-first_iter_pres_fac <float>]");
+call    0 never executed
+    #####:  229:    puts("\t[-bend_cost <float>] [-route_type global | detailed]");
+call    0 never executed
+    #####:  230:    puts("\t[-verify_binary_search] [-route_chan_width <int>]");
+call    0 never executed
+    #####:  231:    puts("\t[-router_algorithm breadth_first | timing_driven]");
+call    0 never executed
+    #####:  232:    puts("\t[-base_cost_type intrinsic_delay | delay_normalized | demand_only]");
+call    0 never executed
+    #####:  233:    puts("");
+call    0 never executed
+    #####:  234:    puts("Routing options valid only for timing-driven routing:");
+call    0 never executed
+    #####:  235:    puts("\t[-astar_fac <float>] [-max_criticality <float>]");
+call    0 never executed
+    #####:  236:    puts("\t[-criticality_exp <float>]");
+call    0 never executed
+    #####:  237:    puts("");
+call    0 never executed
+    #####:  238:}
+        -:  239:
+        -:  240:
+        -:  241:
+        -:  242:static void
+function PrintTitle called 3 returned 100% blocks executed 100%
+        3:  243:PrintTitle()
+        -:  244:{
+        3:  245:    puts("");
+call    0 returned 100%
+        3:  246:    puts("VPR FPGA Placement and Routing.");
+call    0 returned 100%
+        3:  247:    puts("Version: Version 5.0.2");
+call    0 returned 100%
+        3:  248:    puts("Compiled: " __DATE__ ".");
+call    0 returned 100%
+        3:  249:    puts("Original VPR by V. Betz.");
+call    0 returned 100%
+        3:  250:    puts("Timing-driven placement enhancements by A. Marquardt.");
+call    0 returned 100%
+        3:  251:	puts("Single-drivers enhancements by Andy Ye with additions by.");
+call    0 returned 100%
+        3:  252:	puts("Mark Fang, Jason Luu, Ted Campbell");
+call    0 returned 100%
+        3:  253:	puts("Heterogeneous stucture support by Jason Luu and Ted Campbell.");
+call    0 returned 100%
+        3:  254:    puts("This code is licensed only for non-commercial use.");
+call    0 returned 100%
+        3:  255:    puts("");
+call    0 returned 100%
+        3:  256:}
+        -:  257:
+function freeArch called 2 returned 100% blocks executed 100%
+        2:  258:static void freeArch(t_arch* Arch)
+        -:  259:{
+        -:  260:	int i;
+        4:  261:	for(i = 0; i < Arch->num_switches; i++) {
+branch  0 taken 50%
+branch  1 taken 50% (fallthrough)
+        2:  262:		if(Arch->Switches->name != NULL) {
+branch  0 taken 100% (fallthrough)
+branch  1 taken 0%
+        2:  263:			free(Arch->Switches[i].name);
+        -:  264:		}
+        -:  265:	}
+        2:  266:	free(Arch->Switches);
+        4:  267:	for(i = 0; i < Arch->num_segments; i++) {
+branch  0 taken 50%
+branch  1 taken 50% (fallthrough)
+        2:  268:		if(Arch->Segments->cb != NULL) {
+branch  0 taken 100% (fallthrough)
+branch  1 taken 0%
+        2:  269:			free(Arch->Segments[i].cb);
+        -:  270:		}
+        2:  271:		if(Arch->Segments->sb != NULL) {
+branch  0 taken 100% (fallthrough)
+branch  1 taken 0%
+        2:  272:			free(Arch->Segments[i].sb);
+        -:  273:		}
+        -:  274:	}
+        2:  275:	free(Arch->Segments);
+        2:  276:}

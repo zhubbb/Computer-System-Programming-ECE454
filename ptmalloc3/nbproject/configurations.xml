@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configurationDescriptor version="97">
+  <logicalFolder name="root" displayName="root" projectFiles="true" kind="ROOT">
+    <df root="." name="0">
+      <in>malloc.c</in>
+      <in>ptmalloc3.c</in>
+      <in>t-test1.c</in>
+      <in>t-test2.c</in>
+      <in>tst-independent-alloc.c</in>
+    </df>
+    <logicalFolder name="ExternalFiles"
+                   displayName="Important Files"
+                   projectFiles="false"
+                   kind="IMPORTANT_FILES_FOLDER">
+      <itemPath>Makefile</itemPath>
+      <itemPath>nbproject/private/launcher.properties</itemPath>
+    </logicalFolder>
+  </logicalFolder>
+  <sourceFolderFilter>^(nbproject)$</sourceFolderFilter>
+  <sourceRootList>
+    <Elem>.</Elem>
+  </sourceRootList>
+  <projectmakefile>Makefile</projectmakefile>
+  <confs>
+    <conf name="Default" type="0">
+      <toolsSet>
+        <compilerSet>default</compilerSet>
+        <dependencyChecking>false</dependencyChecking>
+        <rebuildPropChanged>false</rebuildPropChanged>
+      </toolsSet>
+      <flagsDictionary>
+        <element flagsID="0" commonFlags="-g -O2"/>
+      </flagsDictionary>
+      <codeAssistance>
+      </codeAssistance>
+      <makefileType>
+        <makeTool>
+          <buildCommandWorkingDir>.</buildCommandWorkingDir>
+          <buildCommand>${MAKE} -f Makefile</buildCommand>
+          <cleanCommand>${MAKE} -f Makefile clean</cleanCommand>
+          <executablePath></executablePath>
+          <cTool>
+            <incDir>
+              <pElem>sysdeps/generic</pElem>
+            </incDir>
+            <preprocessorList>
+              <Elem>USE_TSD_DATA_HACK</Elem>
+              <Elem>_REENTRANT</Elem>
+            </preprocessorList>
+          </cTool>
+        </makeTool>
+        <preBuild>
+          <preBuildCommandWorkingDir>.</preBuildCommandWorkingDir>
+          <preBuildCommand></preBuildCommand>
+        </preBuild>
+      </makefileType>
+      <item path="malloc.c" ex="false" tool="0" flavor2="0">
+        <cTool flags="0">
+          <preprocessorList>
+            <Elem>ONLY_MSPACES</Elem>
+            <Elem>THREAD_STATS=1</Elem>
+            <Elem>USE_LOCKS=0</Elem>
+          </preprocessorList>
+        </cTool>
+      </item>
+      <item path="ptmalloc3.c" ex="false" tool="0" flavor2="0">
+        <cTool flags="0">
+          <preprocessorList>
+            <Elem>MSPACES=1</Elem>
+            <Elem>THREAD_STATS=1</Elem>
+          </preprocessorList>
+        </cTool>
+      </item>
+      <item path="t-test1.c" ex="false" tool="0" flavor2="0">
+        <cTool flags="0">
+          <preprocessorList>
+            <Elem>TEST=1</Elem>
+            <Elem>USE_MALLOC=1</Elem>
+          </preprocessorList>
+        </cTool>
+      </item>
+      <item path="t-test2.c" ex="false" tool="0" flavor2="0">
+        <cTool flags="0">
+          <preprocessorList>
+            <Elem>TEST=1</Elem>
+            <Elem>USE_MALLOC=1</Elem>
+          </preprocessorList>
+        </cTool>
+      </item>
+      <item path="tst-independent-alloc.c" ex="false" tool="0" flavor2="0">
+        <cTool flags="0">
+          <preprocessorList>
+            <Elem>TEST=1</Elem>
+            <Elem>USE_MALLOC=1</Elem>
+          </preprocessorList>
+        </cTool>
+      </item>
+    </conf>
+  </confs>
+</configurationDescriptor>

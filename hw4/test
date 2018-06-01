@@ -1,0 +1,473 @@
+alloc.c: In function 'truncate_block':
+alloc.c:208:18: warning: passing argument 1 of 'acquire_lock' makes integer from pointer without a cast [-Wint-conversion]
+     acquire_lock(bp);
+                  ^~
+alloc.c:114:6: note: expected 'int' but argument is of type 'void *'
+ void acquire_lock(int i){
+      ^~~~~~~~~~~~
+alloc.c:215:22: warning: passing argument 1 of 'release_lock' makes integer from pointer without a cast [-Wint-conversion]
+         release_lock(bp);
+                      ^~
+alloc.c:134:5: note: expected 'int' but argument is of type 'void *'
+ int release_lock(int i){
+     ^~~~~~~~~~~~
+alloc.c:225:22: warning: passing argument 1 of 'release_lock' makes integer from pointer without a cast [-Wint-conversion]
+         release_lock(bp);
+                      ^~
+alloc.c:134:5: note: expected 'int' but argument is of type 'void *'
+ int release_lock(int i){
+     ^~~~~~~~~~~~
+alloc.c:207:9: warning: unused variable 'lock_index' [-Wunused-variable]
+     int lock_index = LOCK_INDEX(bp);
+         ^~~~~~~~~~
+alloc.c: In function 'extend_heap':
+alloc.c:318:31: warning: suggest parentheses around '+' in operand of '&' [-Wparentheses]
+ #define LOCK_INDEX(ptr) (int)((uintptr_t)ptr&(LOCK_NUM-1))
+                               ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ 
+                                
+ pthread_mutex_t lock_pool[LOCK_NUM];
+ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ int lock_counter=LOCK_NUM;
+ ~~~~~~~~~~~~~~~~~~~~~~~~~~     
+ 
+                                
+ pthread_mutex_t pool_lock= PTHREAD_MUTEX_INITIALIZER;
+ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ //pthread_cond_t* pool_cond[LOCK_NUM] = {PTHREAD_COND_INITIALIZER};
+ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ 
+                                
+ pthread_cond_t pool_cond = PTHREAD_COND_INITIALIZER;
+ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ 
+                                
+ void acquire_lock(int i){
+ ~~~~~~~~~~~~~~~~~~~~~~~~~      
+ //    pthread_mutex_lock(&pool_lock);
+ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ //    if(lock_counter<=0){
+ ~~~~~~~~~~~~~~~~~~~~~~~~~~     
+ //        pthread_cond_wait(&pool_cond,&pool_lock);
+ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ //    }
+ ~~~~~~~                        
+ //    else{
+ ~~~~~~~~~~~                    
+ //        lock_counter--;
+ ~~~~~~~~~~~~~~~~~~~~~~~~~      
+ //    }
+ ~~~~~~~                        
+ 
+                                
+ 
+                                
+ //    while(!pthread_mutex_trylock(&lock_pool[i])){
+ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ //        pthread_cond_wait(&pool_cond,&pool_lock);
+ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ //    }
+ ~~~~~~~                        
+     pthread_mutex_lock(&lock_pool[i]);
+     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ 
+                                
+ 
+                                
+ //    pthread_mutex_unlock(&pool_lock);
+ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ 
+                                
+ }
+ ~                              
+ 
+                                
+ int release_lock(int i){
+ ~~~~~~~~~~~~~~~~~~~~~~~~       
+ //    pthread_mutex_lock(&pool_lock);
+ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+     pthread_mutex_unlock(&lock_pool[i]);
+     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ //    pthread_cond_broadcast(&pool_cond);
+ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ //    pthread_mutex_unlock(&pool_lock);
+ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ }
+ ~                              
+ /*
+ ~~                             
+  LOCK FUNCTION
+  ~~~~~~~~~~~~~                 
+  */
+  ~~                            
+ 
+                                
+ 
+                                
+ 
+                                
+ /*
+ ~~                             
+  * Helper function to remove a free block from its list.
+  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  * Input: a pointer to the free block
+  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  */
+  ~~                            
+ void inline drop_from_list(void* bp){
+ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+     int lock_index = LOCK_INDEX(bp);
+     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+     acquire_lock(lock_index);
+     ~~~~~~~~~~~~~~~~~~~~~~~~~  
+     void* pl=GET_PREV_LINK(bp); void* nl=GET_NEXT_LINK(bp);
+     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+     SET_NEXT_LINK(pl,nl);
+     ~~~~~~~~~~~~~~~~~~~~~      
+     SET_PREV_LINK(nl,pl);
+     ~~~~~~~~~~~~~~~~~~~~~      
+     release_lock(lock_index);
+     ~~~~~~~~~~~~~~~~~~~~~~~~~  
+ }
+ ~                              
+ 
+                                
+ /*
+ ~~                             
+  * Helper function to insert a free block to a given list.
+  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  * Free block is inserted to the end of the free list so that older block is likely to be found based on first fit
+  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  * Input: a pointer to a list head, a pointer to the free block
+  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  */
+  ~~                            
+ void inline insert_list(void * listhead, void* bp){
+ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+     void* current = listhead;
+     ~~~~~~~~~~~~~~~~~~~~~~~~~  
+     acquire_lock(LOCK_INDEX(listhead));
+     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+     void* previous= GET_PREV_LINK(listhead);
+     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+     release_lock(LOCK_INDEX(listhead));
+     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ 
+                                
+     int lock_index= LOCK_INDEX(bp);
+     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+     acquire_lock(lock_index);
+     ~~~~~~~~~~~~~~~~~~~~~~~~~  
+     INIT_LINK(bp,previous,current);
+     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+     SET_NEXT_LINK(previous,bp);
+     ~~~~~~~~~~~~~~~~~~~~~~~~~~~
+     SET_PREV_LINK(current,bp);
+     ~~~~~~~~~~~~~~~~~~~~~~~~~~ 
+     release_lock(lock_index);
+     ~~~~~~~~~~~~~~~~~~~~~~~~~  
+ }
+ ~                              
+ /*
+ ~~                             
+  * Helper function to find a the index of the segregated list a free block belongs to.
+  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  * Input: size of the free block
+  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  */
+  ~~                            
+ int inline find_list_index(size_t size){
+ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ 
+                                
+    // return pthread_self()%LIST_NUM;
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ 
+                                
+     int min = MIN_BLK_SIZE<<1;
+     ~~~~~~~~~~~~~~~~~~~~~~~~~~ 
+     if(size){
+     ~~~~~~~~~                  
+         int i=0;
+         ~~~~~~~~               
+         size=size;
+         ~~~~~~~~~~             
+         int limit = LIST_NUM-1;
+         ~~~~~~~~~~~~~~~~~~~~~~~
+         while ( (size>min) && (i < limit)){
+         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+             ++i; min = min<<1;
+             ~~~~~~~~~~~~~~~~~~ 
+         }
+         ~                      
+         return i;
+         ~~~~~~~~~              
+     }
+     ~                          
+     return 0;
+     ~~~~~~~~~                  
+ 
+                                
+ }
+ ~                              
+ 
+                                
+ 
+                                
+ 
+                                
+ /*
+ ~~                             
+  * Helper function to split a free block if there is enough size.
+  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  * Lower part is allocated and the another part is inserted to free block list.
+  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  * Input: pointer of the free block, the allocation size used to split the block
+  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  */
+  ~~                            
+ void inline truncate_block(void* bp, size_t asize){
+ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+     int lock_index = LOCK_INDEX(bp);
+     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+     acquire_lock(bp);
+     ~~~~~~~~~~~~~~~~~          
+     size_t bsize=GET_SIZE(HDRP(bp)); size_t rsize = bsize-asize;
+     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+     // check if there is enough space to split the block
+     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+     if(rsize>=MIN_BLK_SIZE) {
+     ~~~~~~~~~~~~~~~~~~~~~~~~~  
+         void* bp2 = bp+asize;
+         ~~~~~~~~~~~~~~~~~~~~~  
+         // lower part is allocated
+         ~~~~~~~~~~~~~~~~~~~~~~~~~~
+         INIT_HEADER_FOOTER(bp,asize,1);
+         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+         release_lock(bp);
+         ~~~~~~~~~~~~~~~~~      
+         // higher part is set as free block.
+         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+         acquire_lock(LOCK_INDEX(bp2));
+         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+         INIT_HEADER_FOOTER(bp2,rsize,0);
+         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+         acquire_lock(LOCK_INDEX(bp2));
+         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+         //the free part is inserted back to the list
+         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+         insert_list(free_lists[find_list_index(rsize)],bp2);
+         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+     }else{
+     ~~~~~~                     
+         // if no enough size to split then the whole block will be allocated
+         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+         INIT_HEADER_FOOTER(bp,bsize,1);
+         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+         release_lock(bp);
+         ~~~~~~~~~~~~~~~~~      
+     }
+     ~                          
+ 
+                                
+ }
+ ~                              
+ 
+                                
+ /**********************************************************
+ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  * mm_init
+  ~~~~~~~~~                     
+  * Initialize the heap, including prologue and epilogue
+  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  * Plus the header block for each free list preceding the prologue
+  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  **********************************************************/
+  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  int inline _init(void)
+  ~~~~~~~~~~~~~~~~~~~~~~        
+  {
+  ~                             
+ 
+                                
+     if ((heap_listp = mem_sbrk(LIST_NUM*MIN_BLK_SIZE+4*WSIZE)) == (void *)-1)
+     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+           return -1;
+           ~~~~~~~~~~           
+     //initialize empty block as the first block for each free list. Save the null pointer check
+     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+     for(int i=0;i<LIST_NUM;i++){
+     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+         //calculate the pointer for each header block
+         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+         void* bp = heap_listp+i*MIN_BLK_SIZE+WSIZE;
+         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ 
+                                
+         //Use a circular link to connect the first block back to itself to avoid null pointer check
+         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+         INIT_LINK(bp,bp,bp);
+         ~~~~~~~~~~~~~~~~~~~~   
+         INIT_HEADER_FOOTER(bp,0,0); // the size of header block is 0
+         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+         free_lists[i]=bp;// assigned the header block to the header of list
+         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+     }
+     ~                          
+ 
+                                
+     heap_listp=heap_listp+ LIST_NUM*MIN_BLK_SIZE;
+     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+     PUT(heap_listp, 0);                         // alignment padding
+     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+     PUT(heap_listp + (1 * WSIZE), PACK(DSIZE, 1));   // prologue header
+     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+     PUT(heap_listp + (2 * WSIZE), PACK(DSIZE, 1));   // prologue footer
+     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+     PUT(heap_listp + (3 * WSIZE), PACK(0, 1));    // epilogue header
+     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+     heap_listp += DSIZE;
+     ~~~~~~~~~~~~~~~~~~~~       
+ 
+                                
+     //mm_check();
+     ~~~~~~~~~~~~~              
+     return 0;
+     ~~~~~~~~~                  
+  }
+  ~                             
+ 
+                                
+ /**********************************************************
+ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  * coalesce
+  ~~~~~~~~~~                    
+  * it is used to immediately coalesce the neighbour free blocks
+  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  * It can handle all possible cases:
+  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  * - both neighbours are allocated
+  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  * - the next block is available for coalescing
+  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  * - the previous block is available for coalescing
+  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  * - both neighbours are available for coalescing
+  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  * Input: pointer to a free block
+  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  **********************************************************/
+  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ void *coalesce(void *bp)
+ ~~~~~~~~~~~~~~~~~~~~~~~~       
+ {
+ ~                              
+     void * next =NEXT_BLKP(bp);
+     ~~~~~~~~~~~~~~~~~~~~~~~~~~~
+     void * prev =PREV_BLKP(bp);
+     ~~~~~~~~~~~~~~~~~~~~~~~~~~~
+     size_t prev_alloc = GET_ALLOC(HDRP(prev));
+     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+     size_t next_alloc = GET_ALLOC(HDRP(next));
+     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+     size_t size = GET_SIZE(HDRP(bp));
+     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ 
+                                
+     if(!prev_alloc){
+     ~~~~~~~~~~~~~~~~           
+         //if the previous block is free then we will take it out from the free list and coalesce it
+         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+         drop_from_list(prev);
+         ~~~~~~~~~~~~~~~~~~~~~  
+         //recalculate the new size after coalesce a free block
+         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+         size += GET_SIZE(HDRP(prev));
+         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+         //set the pointer to the previous block.
+         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+         bp = prev;
+         ~~~~~~~~~~             
+     }
+     ~                          
+     if(!next_alloc){
+     ~~~~~~~~~~~~~~~~           
+         //same of next block
+         ~~~~~~~~~~~~~~~~~~~~   
+         drop_from_list(next);
+         ~~~~~~~~~~~~~~~~~~~~~  
+         size += GET_SIZE(HDRP(next));
+         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+     }
+     ~                          
+ 
+                                
+     //set the meta-data information for the new free block after coalescing
+     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+     PUT(HDRP(bp), PACK(size, 0));
+     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+     PUT(FTRP(bp), PACK(size, 0));
+     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+     return bp;
+     ~~~~~~~~~~                 
+ 
+                                
+ }
+ ~                              
+ 
+                                
+ /**********************************************************
+ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  * extend_heap
+  ~~~~~~~~~~~~~                 
+  * Extend the heap by size(bytes), assume size is aligned
+  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  * Input: extended size
+  ~~~~~~~~~~~~~~~~~~~~~~        
+  **********************************************************/
+  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ void *extend_heap(size_t size)
+ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ 
+ {
+ ~                              
+     char *bp;
+     ~~~~~~~~~                  
+     if ( (bp = mem_sbrk(size)) == (void *)-1 )
+     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+         return NULL;
+         ~~~~~~~~~~~~           
+     int lock_index = LOCK_INDEX(bp);
+     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+     acquire_lock(lock_index);
+     ~~~~~~~~~~~~~~~~~~~~~~~~~  
+     /* Initialize free block header/footer and the epilogue header */
+     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+     PUT(HDRP(bp), PACK(size, 0));                // free block header
+     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+     PUT(FTRP(bp), PACK(size, 0));                // free block footer
+     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+     release_lock(lock_index);
+     ~~~~~~~~~~~~~~~~~~~~~~~~~  
+ 
+                                
+     lock_index = LOCK_INDEX(bp+size);
+     ~~~~~~~~~~~~~~~~~~~~~~~~~~^~
+alloc.c:104:42: note: in definition of macro 'LOCK_INDEX'
+ #define LOCK_INDEX(ptr) (int)((uintptr_t)ptr&(LOCK_NUM-1))
+                                          ^~~
+alloc.c: In function 'release_lock':
+alloc.c:139:1: warning: control reaches end of non-void function [-Wreturn-type]
+ }
+ ^
+larson.c: In function 'main':
+larson.c:227:3: warning: implicit declaration of function 'pthread_setconcurrency' [-Wimplicit-function-declaration]
+   pthread_setconcurrency (max_threads);
+   ^~~~~~~~~~~~~~~~~~~~~~
+larson.c: In function 'main':
+larson.c:227:3: warning: implicit declaration of function 'pthread_setconcurrency' [-Wimplicit-function-declaration]
+   pthread_setconcurrency (max_threads);
+   ^~~~~~~~~~~~~~~~~~~~~~
+larson.c: In function 'main':
+larson.c:227:3: warning: implicit declaration of function 'pthread_setconcurrency' [-Wimplicit-function-declaration]
+   pthread_setconcurrency (max_threads);
+   ^~~~~~~~~~~~~~~~~~~~~~

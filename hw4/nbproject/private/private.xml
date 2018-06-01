@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project-private xmlns="http://www.netbeans.org/ns/project-private/1">
+    <data xmlns="http://www.netbeans.org/ns/make-project-private/1">
+        <activeConfTypeElem>0</activeConfTypeElem>
+        <activeConfIndexElem>0</activeConfIndexElem>
+    </data>
+    <editor-bookmarks xmlns="http://www.netbeans.org/ns/editor-bookmarks/2" lastBookmarkId="0"/>
+    <open-files xmlns="http://www.netbeans.org/ns/projectui-open-files/2">
+        <group>
+            <file>file:/homes/z/zhang823/ece454/ECE454-Lab4/allocators/alloc/alloc%20(arena%20lock).c</file>
+            <file>file:/homes/z/zhang823/ece454/ECE454-Lab4/allocators/alloc/alloc%20(slow%20version).c</file>
+            <file>file:/homes/z/zhang823/ece454/ECE454-Lab4/util/mm_thread.c</file>
+            <file>file:/homes/z/zhang823/ece454/ECE454-Lab4/util/memlib.c</file>
+            <file>file:/homes/z/zhang823/ece454/ECE454-Lab4/allocators/alloc/alloc.c</file>
+            <file>file:/homes/z/zhang823/ece454/ECE454-Lab4/benchmarks/cache-thrash/cache-thrash.c</file>
+            <file>file:/homes/z/zhang823/ece454/ECE454-Lab4/allocators/alloc/alloc%20(arena%20working%20threadtest).c</file>
+            <file>file:/homes/z/zhang823/ece454/ECE454-Lab4/allocators/alloc/alloc%20(80%20version%20thread%20lock).c</file>
+            <file>file:/homes/z/zhang823/ece454/ECE454-Lab4/allocators/alloc/alloc%20(97%20version%20thread%20lock%2017%20beter%20hash).c</file>
+            <file>file:/homes/z/zhang823/ece454/ECE454-Lab4/allocators/alloc/alloc%20(97%20version%20less%20global%20variable).c</file>
+            <file>file:/homes/z/zhang823/ece454/ECE454-Lab4/allocators/alloc/alloc%20(areana%20second%20try%20failed).c</file>
+            <file>file:/homes/z/zhang823/ece454/ECE454-Lab4/include/malloc.h</file>
+            <file>file:/homes/z/zhang823/ece454/ECE454-Lab4/allocators/kheap/kheap.c</file>
+        </group>
+    </open-files>
+</project-private>

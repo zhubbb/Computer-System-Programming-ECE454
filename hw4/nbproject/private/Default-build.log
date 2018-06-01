@@ -1,0 +1,53 @@
+cd util; make
+make[1]: Entering directory '/nfs/ug/homes-1/z/zhang823/ece454/ECE454-Lab4/util'
+gcc -O3 -DNDEBUG -c -I../include memlib.c
+gcc -O3 -DNDEBUG -c -I../include tsc.c
+gcc -O3 -DNDEBUG -c -I../include mm_thread.c
+ar rs libmmutil.a memlib.o tsc.o mm_thread.o
+ar: creating libmmutil.a
+make[1]: Leaving directory '/nfs/ug/homes-1/z/zhang823/ece454/ECE454-Lab4/util'
+cd allocators; make
+make[1]: Entering directory '/nfs/ug/homes-1/z/zhang823/ece454/ECE454-Lab4/allocators'
+mkdir alloclibs
+cd kheap; gcc -std=gnu99 -c -Wall -fmessage-length=0 -pipe -O3 -finline-limit=65000 -fkeep-inline-functions -finline-functions -ffast-math -fomit-frame-pointer -DNDEBUG -I. -I/homes/z/zhang823/ece454/ECE454-Lab4/include -D_REENTRANT=1 kheap.c; ar rs ../alloclibs/libkheap.a kheap.o
+ar: creating ../alloclibs/libkheap.a
+cd libc; gcc -std=gnu99 -c -Wall -fmessage-length=0 -pipe -O3 -finline-limit=65000 -fkeep-inline-functions -finline-functions -ffast-math -fomit-frame-pointer -DNDEBUG -I. -I/homes/z/zhang823/ece454/ECE454-Lab4/include -D_REENTRANT=1 libc_wrapper.c; ar rs ../alloclibs/libmmlibc.a libc_wrapper.o
+ar: creating ../alloclibs/libmmlibc.a
+cd alloc; gcc -std=gnu99 -c -Wall -fmessage-length=0 -pipe -O3 -finline-limit=65000 -fkeep-inline-functions -finline-functions -ffast-math -fomit-frame-pointer -DNDEBUG -I. -I/homes/z/zhang823/ece454/ECE454-Lab4/include -D_REENTRANT=1 alloc.c; ar rs ../alloclibs/liballoc.a alloc.o
+ar: creating ../alloclibs/liballoc.a
+make[1]: Leaving directory '/nfs/ug/homes-1/z/zhang823/ece454/ECE454-Lab4/allocators'
+for dir in cache-scratch cache-thrash larson threadtest ; do \
+  (cd benchmarks/$dir; /usr/bin/make); \
+done
+make[1]: Entering directory '/nfs/ug/homes-1/z/zhang823/ece454/ECE454-Lab4/benchmarks/cache-scratch'
+gcc -O3 -DNDEBUG -I/homes/z/zhang823/ece454/ECE454-Lab4/include -L /homes/z/zhang823/ece454/ECE454-Lab4/util -o cache-scratch-kheap cache-scratch.c /homes/z/zhang823/ece454/ECE454-Lab4/allocators/alloclibs/libkheap.a -lmmutil -lpthread -lm
+gcc -O3 -DNDEBUG -I/homes/z/zhang823/ece454/ECE454-Lab4/include -L /homes/z/zhang823/ece454/ECE454-Lab4/util -o cache-scratch-libc cache-scratch.c /homes/z/zhang823/ece454/ECE454-Lab4/allocators/alloclibs/libmmlibc.a -lmmutil -lpthread -lm
+gcc -O3 -DNDEBUG -I/homes/z/zhang823/ece454/ECE454-Lab4/include -L /homes/z/zhang823/ece454/ECE454-Lab4/util -o cache-scratch-alloc cache-scratch.c /homes/z/zhang823/ece454/ECE454-Lab4/allocators/alloclibs/liballoc.a -lmmutil -lpthread -lm
+make[1]: Leaving directory '/nfs/ug/homes-1/z/zhang823/ece454/ECE454-Lab4/benchmarks/cache-scratch'
+make[1]: Entering directory '/nfs/ug/homes-1/z/zhang823/ece454/ECE454-Lab4/benchmarks/cache-thrash'
+gcc -O3 -DNDEBUG -I/homes/z/zhang823/ece454/ECE454-Lab4/include -L /homes/z/zhang823/ece454/ECE454-Lab4/util -o cache-thrash-kheap cache-thrash.c /homes/z/zhang823/ece454/ECE454-Lab4/allocators/alloclibs/libkheap.a -lmmutil -lpthread -lm
+gcc -O3 -DNDEBUG -I/homes/z/zhang823/ece454/ECE454-Lab4/include -L /homes/z/zhang823/ece454/ECE454-Lab4/util -o cache-thrash-libc cache-thrash.c /homes/z/zhang823/ece454/ECE454-Lab4/allocators/alloclibs/libmmlibc.a -lmmutil -lpthread -lm
+gcc -O3 -DNDEBUG -I/homes/z/zhang823/ece454/ECE454-Lab4/include -L /homes/z/zhang823/ece454/ECE454-Lab4/util -o cache-thrash-alloc cache-thrash.c /homes/z/zhang823/ece454/ECE454-Lab4/allocators/alloclibs/liballoc.a -lmmutil -lpthread -lm
+make[1]: Leaving directory '/nfs/ug/homes-1/z/zhang823/ece454/ECE454-Lab4/benchmarks/cache-thrash'
+make[1]: Entering directory '/nfs/ug/homes-1/z/zhang823/ece454/ECE454-Lab4/benchmarks/larson'
+gcc -O3 -DNDEBUG -I/homes/z/zhang823/ece454/ECE454-Lab4/include -L /homes/z/zhang823/ece454/ECE454-Lab4/util -o larson-kheap larson.c /homes/z/zhang823/ece454/ECE454-Lab4/allocators/alloclibs/libkheap.a -lmmutil -lpthread -lm
+larson.c: In function 'main':
+larson.c:227:3: warning: implicit declaration of function 'pthread_setconcurrency' [-Wimplicit-function-declaration]
+   pthread_setconcurrency (max_threads);
+   ^~~~~~~~~~~~~~~~~~~~~~
+gcc -O3 -DNDEBUG -I/homes/z/zhang823/ece454/ECE454-Lab4/include -L /homes/z/zhang823/ece454/ECE454-Lab4/util -o larson-libc larson.c /homes/z/zhang823/ece454/ECE454-Lab4/allocators/alloclibs/libmmlibc.a -lmmutil -lpthread -lm
+larson.c: In function 'main':
+larson.c:227:3: warning: implicit declaration of function 'pthread_setconcurrency' [-Wimplicit-function-declaration]
+   pthread_setconcurrency (max_threads);
+   ^~~~~~~~~~~~~~~~~~~~~~
+gcc -O3 -DNDEBUG -I/homes/z/zhang823/ece454/ECE454-Lab4/include -L /homes/z/zhang823/ece454/ECE454-Lab4/util -o larson-alloc larson.c /homes/z/zhang823/ece454/ECE454-Lab4/allocators/alloclibs/liballoc.a -lmmutil -lpthread -lm
+larson.c: In function 'main':
+larson.c:227:3: warning: implicit declaration of function 'pthread_setconcurrency' [-Wimplicit-function-declaration]
+   pthread_setconcurrency (max_threads);
+   ^~~~~~~~~~~~~~~~~~~~~~
+make[1]: Leaving directory '/nfs/ug/homes-1/z/zhang823/ece454/ECE454-Lab4/benchmarks/larson'
+make[1]: Entering directory '/nfs/ug/homes-1/z/zhang823/ece454/ECE454-Lab4/benchmarks/threadtest'
+gcc -O3 -DNDEBUG -I/homes/z/zhang823/ece454/ECE454-Lab4/include -L /homes/z/zhang823/ece454/ECE454-Lab4/util -o threadtest-kheap threadtest.c /homes/z/zhang823/ece454/ECE454-Lab4/allocators/alloclibs/libkheap.a -lmmutil -lpthread -lm
+gcc -O3 -DNDEBUG -I/homes/z/zhang823/ece454/ECE454-Lab4/include -L /homes/z/zhang823/ece454/ECE454-Lab4/util -o threadtest-libc threadtest.c /homes/z/zhang823/ece454/ECE454-Lab4/allocators/alloclibs/libmmlibc.a -lmmutil -lpthread -lm
+gcc -O3 -DNDEBUG -I/homes/z/zhang823/ece454/ECE454-Lab4/include -L /homes/z/zhang823/ece454/ECE454-Lab4/util -o threadtest-alloc threadtest.c /homes/z/zhang823/ece454/ECE454-Lab4/allocators/alloclibs/liballoc.a -lmmutil -lpthread -lm
+make[1]: Leaving directory '/nfs/ug/homes-1/z/zhang823/ece454/ECE454-Lab4/benchmarks/threadtest'

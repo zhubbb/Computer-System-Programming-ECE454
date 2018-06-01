@@ -1,0 +1,180 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configurationDescriptor version="97">
+  <logicalFolder name="root" displayName="root" projectFiles="true" kind="ROOT">
+    <df root="." name="0">
+      <df name="allocators">
+        <df name="alloc">
+          <in>alloc (80 version thread lock).c</in>
+          <in>alloc (97 version less global variable).c</in>
+          <in>alloc (97 version thread lock 17 beter hash).c</in>
+          <in>alloc (98,8 version 100% frag).c</in>
+          <in>alloc (another copy clear).c</in>
+          <in>alloc (another seg fault).c</in>
+          <in>alloc (areana second try failed).c</in>
+          <in>alloc (arena lock).c</in>
+          <in>alloc (arena working threadtest).c</in>
+          <in>alloc (basic working).c</in>
+          <in>alloc (complicated jemalloc struct).c</in>
+          <in>alloc (copy).c</in>
+          <in>alloc (fail).c</in>
+          <in>alloc (fake hope).c</in>
+          <in>alloc (final no global).c</in>
+          <in>alloc (no bug hope).c</in>
+          <in>alloc (no slow perfection jemalloc struct 71 heap).c</in>
+          <in>alloc (slow version).c</in>
+          <in>alloc (super slow version to get multithread pts).c</in>
+          <in>alloc (super version 87 threads another copy).c</in>
+          <in>alloc (working).c</in>
+          <in>alloc.c</in>
+        </df>
+        <df name="alloclibs">
+        </df>
+        <df name="kheap">
+          <in>kheap.c</in>
+        </df>
+        <df name="libc">
+          <in>libc_wrapper.c</in>
+        </df>
+      </df>
+      <df name="benchmarks">
+        <df name="cache-scratch">
+          <df name="Results">
+            <df name="alloc">
+            </df>
+          </df>
+          <in>cache-scratch.c</in>
+        </df>
+        <df name="cache-thrash">
+          <df name="Results">
+            <df name="alloc">
+            </df>
+          </df>
+          <in>cache-thrash.c</in>
+        </df>
+        <df name="larson">
+          <df name="Input">
+          </df>
+          <df name="Results">
+            <df name="alloc">
+            </df>
+          </df>
+          <in>larson.c</in>
+        </df>
+        <df name="threadtest">
+          <df name="Results">
+            <df name="alloc">
+            </df>
+            <df name="libc">
+            </df>
+          </df>
+          <in>threadtest.c</in>
+        </df>
+      </df>
+      <df name="ECE454-Lab4">
+        <df name=".idea">
+        </df>
+        <df name="allocators">
+          <df name="alloc">
+            <in>alloc.c</in>
+          </df>
+          <df name="kheap">
+            <in>kheap.c</in>
+          </df>
+          <df name="libc">
+            <in>libc_wrapper.c</in>
+          </df>
+        </df>
+        <df name="benchmarks">
+          <df name=".idea">
+          </df>
+          <df name="cache-scratch">
+            <in>cache-scratch.c</in>
+          </df>
+          <df name="cache-thrash">
+            <in>cache-thrash.c</in>
+          </df>
+          <df name="larson">
+            <in>larson.c</in>
+          </df>
+          <df name="threadtest">
+            <in>threadtest.c</in>
+          </df>
+        </df>
+        <df name="include">
+          <in>ftime.h</in>
+          <in>malloc.h</in>
+          <in>memlib.h</in>
+          <in>mm_thread.h</in>
+          <in>timer.h</in>
+          <in>tsc.h</in>
+        </df>
+        <df name="util">
+          <in>memlib.c</in>
+          <in>mm_thread.c</in>
+          <in>tsc.c</in>
+        </df>
+      </df>
+      <df name="include">
+        <in>ftime.h</in>
+        <in>malloc.h</in>
+        <in>memlib.h</in>
+        <in>mm_thread.h</in>
+        <in>timer.h</in>
+        <in>tsc.h</in>
+      </df>
+      <df name="util">
+        <in>memlib.c</in>
+        <in>mm_thread.c</in>
+        <in>tsc.c</in>
+      </df>
+    </df>
+  </logicalFolder>
+  <projectmakefile>Makefile</projectmakefile>
+  <confs>
+    <conf name="Default" type="0">
+      <toolsSet>
+        <developmentServer>localhost</developmentServer>
+        <platform>2</platform>
+      </toolsSet>
+      <compile>
+        <compiledirpicklist>
+          <compiledirpicklistitem>.</compiledirpicklistitem>
+          <compiledirpicklistitem>${AUTO_FOLDER}</compiledirpicklistitem>
+        </compiledirpicklist>
+        <compiledir>${AUTO_FOLDER}</compiledir>
+        <compilecommandpicklist>
+          <compilecommandpicklistitem>${MAKE} ${ITEM_NAME}.o</compilecommandpicklistitem>
+          <compilecommandpicklistitem>${AUTO_COMPILE}</compilecommandpicklistitem>
+        </compilecommandpicklist>
+        <compilecommand>${AUTO_COMPILE}</compilecommand>
+      </compile>
+      <dbx_gdbdebugger version="1">
+        <gdb_pathmaps>
+        </gdb_pathmaps>
+        <gdb_interceptlist>
+          <gdbinterceptoptions gdb_all="false" gdb_unhandled="true" gdb_unexpected="true"/>
+        </gdb_interceptlist>
+        <gdb_options>
+          <DebugOptions>
+          </DebugOptions>
+        </gdb_options>
+        <gdb_buildfirst gdb_buildfirst_overriden="false" gdb_buildfirst_old="false"/>
+      </dbx_gdbdebugger>
+      <nativedebugger version="1">
+        <engine>gdb</engine>
+      </nativedebugger>
+      <runprofile version="9">
+        <runcommandpicklist>
+          <runcommandpicklistitem>"${OUTPUT_PATH}"</runcommandpicklistitem>
+        </runcommandpicklist>
+        <runcommand>"${OUTPUT_PATH}"</runcommand>
+        <rundir>.</rundir>
+        <buildfirst>false</buildfirst>
+        <terminal-type>0</terminal-type>
+        <remove-instrumentation>0</remove-instrumentation>
+        <environment>
+        </environment>
+      </runprofile>
+    </conf>
+  </confs>
+</configurationDescriptor>
